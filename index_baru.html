@@ -1,0 +1,2790 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>CRO CHESS KING</title>
+<style>
+/* ============================================================
+   CRO CHESS KING — V.1.6.0
+   - Branding: CRO besar di atas, CHESS KING di bawahnya
+   - Lobby: deskripsi P1 = "VS AI", P2 = tanpa deskripsi
+   - PC: fullscreen otomatis pada gesture pertama
+   - Papan: sizing besar & stabil saat resize (basis vmin)
+   ============================================================ */
+:root{
+  --gold:#d3ab63;
+  --gold-dim:#8a6f3e;
+  --ivory:#efe6d0;
+  --ivory-dim:#b4a789;
+  --danger:#c9503c;
+  --display: Georgia,'Times New Roman',serif;
+  --ui: 'Trebuchet MS','Segoe UI',Verdana,sans-serif;
+}
+body, body.theme-walnut{ --sq-l:#e9dab8; --sq-d:#7c5741; --frame:#2a1e13; --frame-edge:#150e07; }
+body.theme-emerald{ --sq-l:#e7e5d4; --sq-d:#5d7b5f; --frame:#1c261d; --frame-edge:#0e150f; }
+body.theme-slate{ --sq-l:#e0e4e9; --sq-d:#5f6d7e; --frame:#1d232b; --frame-edge:#0f1319; }
+
+*{ margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+html,body{ height:100%; }
+body{
+  font-family:var(--ui); color:var(--ivory); overflow:hidden;
+  user-select:none; -webkit-user-select:none; -webkit-touch-callout:none;
+  touch-action:manipulation; background:#120d08;
+}
+body::before{
+  content:''; position:fixed; inset:0; pointer-events:none;
+  background:radial-gradient(120% 90% at 50% 22%, #251c11 0%, #140f09 58%, #0b0805 100%);
+}
+
+.screen{
+  position:fixed; inset:0; z-index:1;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  opacity:0; visibility:hidden;
+  transition:opacity .45s ease, visibility 0s linear .45s;
+}
+.screen.active{ opacity:1; visibility:visible; transition:opacity .45s ease, visibility 0s; }
+
+#scr-menu{ transition:opacity .5s ease, transform .5s ease, visibility 0s linear .5s; }
+#scr-menu:not(.active){ transform:scale(1.05); }
+
+/* ============================================================
+   BRAND STACK — CRO besar di atas, CHESS KING di bawah
+   (dipakai di opening & lobby)
+   ============================================================ */
+.brand-stack{ display:flex; flex-direction:column; align-items:center; line-height:.94; }
+.bs-cro{
+  font-family:var(--display); font-weight:700;
+  font-size:clamp(44px,13vmin,110px);
+  letter-spacing:.2em; text-indent:.2em;
+  color:var(--ivory);
+  text-shadow:0 4px 22px rgba(0,0,0,.5);
+}
+.bs-sub{
+  display:flex; align-items:center; gap:10px; margin-top:6px;
+}
+.bs-sub .bs-line{
+  width:clamp(24px,6vmin,48px); height:2px;
+  background:linear-gradient(90deg, transparent, var(--gold));
+}
+.bs-sub .bs-line.r{ background:linear-gradient(90deg, var(--gold), transparent); }
+.bs-sub .bs-txt{
+  font-size:clamp(13px,3.4vmin,26px); font-weight:700;
+  letter-spacing:.5em; text-indent:.5em;
+  color:var(--gold); white-space:nowrap;
+}
+
+/* ============================================================
+   1. OPENING
+   ============================================================ */
+.stage{ display:flex; flex-direction:column; align-items:center; }
+.kn-stage{
+  position:relative;
+  width:clamp(160px,36vmin,260px);
+  padding-bottom:14px;
+}
+.kn-move, .kn-hop, .kn-flip{ will-change:transform; transform:translateZ(0); }
+.kn-move{ transform:translateX(-78px) translateZ(0); }
+.kn-flip{ transform-origin:50% 92%; }
+.kn-svg{ display:block; width:100%; }
+.kn-shadow{
+  position:absolute; left:50%; bottom:0; width:56%; height:14px;
+  transform:translateX(-50%) translateZ(0);
+  background:radial-gradient(ellipse at center, rgba(0,0,0,.55) 0%, rgba(0,0,0,0) 70%);
+}
+.kn-stage.go .kn-hop{ animation:knHopY 2s cubic-bezier(.4,0,.3,1) both; }
+@keyframes knHopY{
+  0%,7%  { transform:translateY(0) scale(1,1); }
+  10%    { transform:translateY(2px) scale(1.07,.9); }
+  20%    { transform:translateY(-52px) scale(.96,1.07); }
+  28%,30%{ transform:translateY(0) scale(1,1); }
+  32%    { transform:translateY(2px) scale(1.07,.9); }
+  42%    { transform:translateY(-52px) scale(.96,1.07); }
+  50%,52%{ transform:translateY(0) scale(1,1); }
+  54%    { transform:translateY(2px) scale(1.07,.9); }
+  64%    { transform:translateY(-52px) scale(.96,1.07); }
+  72%,74%{ transform:translateY(0) scale(1,1); }
+  78%    { transform:translateY(0) scale(1.06,.94); }
+  86%,100%{ transform:translateY(0) scale(1,1); }
+}
+.kn-stage.go .kn-move{ animation:knMoveX 2s cubic-bezier(.45,0,.3,1) both; }
+@keyframes knMoveX{
+  0%,10%  { transform:translateX(-78px) translateZ(0); }
+  30%     { transform:translateX(-42px) translateZ(0); }
+  52%     { transform:translateX(-14px) translateZ(0); }
+  74%     { transform:translateX(2px) translateZ(0); }
+  100%    { transform:translateX(0) translateZ(0); }
+}
+.kn-stage.go .kn-shadow{ animation:shPulse 2s cubic-bezier(.4,0,.3,1) both; }
+@keyframes shPulse{
+  0%,7%{ transform:translateX(-50%) scale(1); }
+  20%  { transform:translateX(-50%) scale(.7); }
+  29%  { transform:translateX(-50%) scale(1.1); }
+  42%  { transform:translateX(-50%) scale(.7); }
+  51%  { transform:translateX(-50%) scale(1.1); }
+  64%  { transform:translateX(-50%) scale(.7); }
+  74%,100%{ transform:translateX(-50%) scale(1); }
+}
+.kn-stage.turn .kn-flip{ animation:knTurn .48s cubic-bezier(.4,0,.2,1) both; }
+@keyframes knTurn{
+  0%  { transform:scaleX(1); }
+  45% { transform:scaleX(.06); }
+  100%{ transform:scaleX(1); }
+}
+.kn-face{ transition:opacity .12s ease; }
+.kn-front{ opacity:0; }
+.kn-svg.show-front .kn-front{ opacity:1; }
+.kn-svg.show-front .kn-back{ opacity:0; }
+.kn-stage.idle .kn-hop{ animation:knIdleBob 2.8s ease-in-out infinite; }
+@keyframes knIdleBob{ 50%{ transform:translateY(-6px); } }
+
+.title{ display:flex; flex-direction:column; align-items:center; margin-top:4.5vmin; opacity:0; transform:translateY(14px); transition:opacity .6s ease, transform .6s ease; }
+.title.show{ opacity:1; transform:none; }
+.tap-hint{
+  margin-top:4vmin; font-size:10px; letter-spacing:.5em; text-indent:.5em;
+  color:#9c8d6d; opacity:0; transition:opacity .6s;
+}
+.tap-hint.show{ animation:hintPulse 2.2s ease-in-out .7s infinite; }
+@keyframes hintPulse{ 0%,100%{opacity:.9} 50%{opacity:.3} }
+
+/* ============================================================
+   2. MAIN LOBBY
+   ============================================================ */
+.lobby{
+  position:relative; width:min(94vw,940px);
+  display:flex; flex-direction:column; align-items:center; gap:3vmin;
+  padding:10px;
+}
+.lobby::before{
+  content:'\265E'; position:absolute; right:-4vmin; bottom:-10vmin;
+  font-size:clamp(140px,40vmin,340px); line-height:1;
+  color:rgba(211,171,99,.05); pointer-events:none; transform:rotate(-6deg);
+}
+.lobby-left{ display:flex; flex-direction:column; align-items:center; position:relative; }
+.lobby-glow{
+  position:absolute; top:-6vmin; left:50%; transform:translateX(-50%);
+  width:52vmin; height:52vmin; border-radius:50%; pointer-events:none;
+  background:radial-gradient(circle, rgba(211,171,99,.12) 0%, rgba(211,171,99,0) 62%);
+}
+.menu-mascot{ position:relative; }
+.menu-mascot .mascot{ width:clamp(100px,20vmin,168px); display:block; animation:floatY 4.2s ease-in-out infinite; }
+@keyframes floatY{ 50%{ transform:translateY(-8px) } }
+.brand{ display:flex; flex-direction:column; align-items:center; margin-top:1vmin; }
+/* Brand lobby memakai brand-stack versi kompak */
+.brand .bs-cro{ font-size:clamp(34px,8.5vmin,76px); }
+.brand .bs-sub .bs-txt{ font-size:clamp(11px,2.6vmin,20px); }
+
+.lobby-right{ display:flex; flex-direction:column; align-items:center; gap:14px; position:relative; }
+.lobby-stats{ display:flex; align-items:center; gap:12px; }
+.chip{
+  font-size:10px; font-weight:700; letter-spacing:.3em; text-indent:.3em;
+  color:var(--gold); border:1px solid rgba(212,175,106,.4);
+  border-radius:999px; padding:5px 14px; white-space:nowrap;
+}
+.menu-nav{ display:flex; flex-direction:column; gap:11px; }
+.btn{
+  border-radius:14px; cursor:pointer; position:relative; overflow:hidden;
+  font-family:var(--ui); font-weight:700;
+  background:#231a0f; color:#e6dabd;
+  border:1px solid #3b2f1d;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.06), 0 7px 16px rgba(0,0,0,.4);
+  transition:transform .16s ease, border-color .16s, filter .16s, box-shadow .16s;
+}
+.btn:hover{ transform:translateY(-2px); border-color:#6b5734; filter:brightness(1.08); }
+.btn:active{ transform:translateY(1px) scale(.985); box-shadow:inset 0 2px 6px rgba(0,0,0,.45); }
+.btn.big{
+  min-width:min(80vw,330px);
+  display:flex; align-items:center; gap:14px; text-align:left;
+  padding:13px 18px;
+}
+.btn .b-ic{
+  font-family:var(--display); font-size:26px; line-height:1; color:var(--gold);
+  width:38px; height:38px; display:flex; align-items:center; justify-content:center;
+  border:1px solid rgba(212,175,106,.35); border-radius:10px; flex:none;
+  background:rgba(211,171,99,.07);
+}
+.btn .b-tx{ display:flex; flex-direction:column; gap:3px; }
+.btn .b-tx b{ font-size:13px; letter-spacing:.3em; text-indent:.05em; }
+.btn .b-tx i{ font-style:normal; font-size:8.5px; letter-spacing:.22em; color:#8d7f63; }
+.btn .b-ar{
+  margin-left:auto; color:var(--gold); font-size:20px; line-height:1;
+  transition:transform .18s ease;
+}
+.btn.big:hover .b-ar{ transform:translateX(4px); }
+.menu-row{ display:flex; gap:11px; width:min(80vw,330px); }
+.btn.half{
+  flex:1; display:flex; align-items:center; justify-content:space-between;
+  padding:13px 16px; font-size:12px; letter-spacing:.3em; text-indent:.05em;
+}
+.btn.half .b-ar{ margin-left:8px; font-size:16px; }
+.lobby-foot{ font-size:9px; letter-spacing:.4em; text-indent:.4em; color:#6d604a; }
+
+@media (orientation:landscape) and (min-width:680px){
+  .lobby{ flex-direction:row; gap:8vmin; }
+  .lobby-left{ margin-bottom:2vmin; }
+}
+
+/* ---------- Ripple ---------- */
+.icon-btn, .ptile{ position:relative; overflow:hidden; }
+.ripple{
+  position:absolute; border-radius:50%; pointer-events:none;
+  background:radial-gradient(circle, rgba(232,196,120,.55) 0%, rgba(232,196,120,.2) 45%, transparent 70%);
+  transform:translate(-50%,-50%) scale(0);
+  animation:rip .55s ease-out forwards;
+}
+@keyframes rip{ to{ transform:translate(-50%,-50%) scale(1); opacity:0; } }
+
+/* ============================================================
+   3 & 4. CHESS SCREEN — papan besar & stabil saat resize
+   Prioritas LEBAR: papan mengikuti lebar kolom board-side,
+   dibatasi 96dvh (tak pernah lebih dari tinggi layar).
+   Basis vmin membuat papan tetap BESAR di landscape HP/PC.
+   ============================================================ */
+.game-wrap{ height:100%; width:100%; display:flex; flex-direction:row; }
+.board-side{
+  flex:1; min-width:0; min-height:0;
+  display:flex; align-items:center; justify-content:center;
+  padding:10px 4px 10px 10px;
+}
+.side-panel{
+  width:clamp(150px,19vw,238px); height:100%;
+  display:flex; flex-direction:column;
+  padding:18px 16px;
+  background:rgba(255,255,255,.025);
+  border-left:1px solid rgba(255,255,255,.06);
+}
+.sp-top{ display:flex; flex-direction:column; align-items:center; gap:8px; }
+.gt-name{
+  font-family:var(--display); font-weight:700; font-size:11px;
+  letter-spacing:.28em; text-indent:.28em; text-align:center; line-height:1.6;
+  color:var(--ivory-dim);
+}
+.gt-lv{
+  font-size:10px; font-weight:700; letter-spacing:.3em; text-indent:.3em;
+  color:var(--gold); border:1px solid rgba(212,175,106,.4);
+  border-radius:999px; padding:4px 12px; white-space:nowrap;
+}
+.lives{ display:flex; gap:5px; align-items:center; }
+.lives .heart svg{ width:15px; height:15px; display:block; }
+.lives .heart{ transition:transform .25s, opacity .25s; }
+.lives .heart:not(.on){ opacity:.45; transform:scale(.85); }
+.lives .heart.hit{ animation:heartHit .5s ease-out; }
+@keyframes heartHit{ 0%{transform:scale(1.6)} 45%{transform:scale(.7)} 100%{transform:scale(.85)} }
+
+.sp-mid{ margin:auto 0; display:flex; flex-direction:column; align-items:center; gap:12px; width:100%; }
+.sp-foot{ margin-top:auto; display:flex; flex-direction:column; gap:8px; }
+
+.icon-btn{
+  display:inline-flex; align-items:center; justify-content:center; gap:7px;
+  background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.12);
+  color:var(--ivory-dim); border-radius:10px; padding:10px 14px;
+  font-family:var(--ui); font-weight:700; font-size:10px; letter-spacing:.22em; text-indent:.1em;
+  cursor:pointer; transition:color .16s, border-color .16s, transform .12s;
+}
+.icon-btn svg{ width:13px; height:13px; }
+.icon-btn:hover{ color:var(--ivory); border-color:rgba(212,175,106,.45); }
+.icon-btn:active{ transform:scale(.94); }
+.icon-btn.wide{ width:100%; }
+
+/* PAPAN: basis vmin besar, resize hanya mengecil bila tinggi
+   layar benar-benar lebih kecil dari itu (anti menyusut). */
+.board-frame{
+  --pad:clamp(14px,3vmin,22px);
+  position:relative;
+  width:min(100%, 88vmin, 700px);
+  background:var(--frame);
+  border-radius:12px;
+  padding:var(--pad);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.07),
+    0 10px 0 -2px var(--frame-edge),
+    0 12px 0 -2px rgba(0,0,0,.45),
+    0 34px 54px -14px rgba(0,0,0,.65);
+}
+.board-frame.deal{ animation:boardIn .5s cubic-bezier(.2,.9,.3,1.08); }
+@keyframes boardIn{ from{ opacity:.35; transform:scale(.965); } }
+.board-frame.shake{ animation:bShake .18s ease-out; }
+@keyframes bShake{
+  25%{ transform:translate(-3px,1px); }
+  55%{ transform:translate(3px,-1px); }
+  80%{ transform:translate(-2px,0); }
+}
+
+.board{ position:relative; aspect-ratio:1/1;
+  box-shadow:0 0 0 1px rgba(0,0,0,.55), 0 0 0 3px rgba(212,175,106,.25), 0 0 0 4px rgba(0,0,0,.4);
+}
+.squares,.marks,.pieces,.fx-layer{ position:absolute; inset:0; }
+.squares{ display:grid; grid-template-columns:repeat(8,1fr); grid-template-rows:repeat(8,1fr); cursor:pointer; }
+.sq{ position:relative; }
+.sq.light{ background:var(--sq-l); box-shadow:inset 0 2px 0 rgba(255,255,255,.22), inset 0 -2px 0 rgba(0,0,0,.07); }
+.sq.dark{ background:var(--sq-d); box-shadow:inset 0 2px 0 rgba(255,255,255,.08), inset 0 -3px 6px rgba(0,0,0,.18); }
+.squares::after{
+  content:''; position:absolute; inset:0; pointer-events:none;
+  box-shadow:inset 0 12px 26px rgba(0,0,0,.16), inset 0 -8px 20px rgba(0,0,0,.12), inset 0 0 60px rgba(0,0,0,.06);
+}
+.coord{ position:absolute; display:flex; pointer-events:none; font-weight:700;
+  font-size:clamp(8px,1.7vmin,11px); color:rgba(244,234,210,.5); z-index:2; }
+.coord.files{ left:var(--pad); right:var(--pad); bottom:calc(var(--pad)*0.18); }
+.coord.files span{ flex:1; text-align:center; }
+.coord.ranks{ top:var(--pad); bottom:var(--pad); left:calc(var(--pad)*0.16); flex-direction:column; }
+.coord.ranks span{ flex:1; display:flex; align-items:center; }
+
+.mark{ position:absolute; left:0; top:0; width:12.5%; height:12.5%; pointer-events:none; animation:markIn .18s ease-out both; }
+@keyframes markIn{ from{opacity:0} }
+.mark.last{ background:rgba(212,175,106,.16); box-shadow:inset 0 0 0 1px rgba(212,175,106,.25); }
+.mark.sel{ border-radius:3px; box-shadow:inset 0 0 0 3px var(--gold), inset 0 0 20px rgba(212,175,106,.32); }
+.mark.dot::after{
+  content:''; position:absolute; inset:0; margin:auto; width:25%; height:25%; border-radius:50%;
+  background:rgba(24,14,5,.32);
+  box-shadow:inset 0 2px 3px rgba(0,0,0,.35), 0 1px 0 rgba(255,255,255,.14);
+  animation:dotIn .22s cubic-bezier(.2,.9,.3,1.4) both;
+}
+.mark.ring::after{
+  content:''; position:absolute; inset:5%; border-radius:50%;
+  border:4px solid rgba(158,44,29,.68);
+  box-shadow:0 2px 6px rgba(0,0,0,.25), inset 0 2px 6px rgba(0,0,0,.18);
+  animation:dotIn .22s cubic-bezier(.2,.9,.3,1.4) both;
+}
+@keyframes dotIn{ from{ transform:scale(.3); opacity:0 } }
+.mark.checkk::after{
+  content:''; position:absolute; inset:4%; border-radius:4px;
+  background:radial-gradient(circle at 50% 42%, rgba(178,54,36,.55) 0%, rgba(178,54,36,.22) 55%, transparent 75%);
+  box-shadow:inset 0 0 0 1.5px rgba(198,84,60,.55);
+  animation:checkPulse 1.4s ease-in-out infinite;
+}
+@keyframes checkPulse{ 50%{ opacity:.5 } }
+
+/* ---------- Bidak ---------- */
+.pieces{ pointer-events:none; z-index:3; }
+.piece{
+  position:absolute; left:0; top:0; width:12.5%; height:12.5%;
+  pointer-events:none; will-change:transform;
+}
+.piece.w{ --p-main:#eee1c2; --p-hi:#faf3e0; --p-lo:#c6b183; --p-line:#57431f; --p-det:#4d3b1e; }
+.piece.b{ --p-main:#3a3d47; --p-hi:#5d616d; --p-lo:#23252d; --p-line:#0a0b0f; --p-det:#a9aebc; }
+.piece svg{
+  position:absolute; left:0; top:0;
+  width:126%; height:126%; margin:-19% 0 0 -13%;
+  overflow:visible;
+  filter:drop-shadow(0 5px 5px rgba(0,0,0,.38));
+  transition:transform .18s ease, filter .18s ease;
+}
+.piece.selected svg{
+  transform:translateY(-7%) scale(1.08);
+  filter:drop-shadow(0 14px 10px rgba(0,0,0,.45));
+}
+.piece.b .knight-face{ display:none; }
+
+/* ---------- Stiker komik ---------- */
+.fx-layer{ pointer-events:none; z-index:6; }
+.fx{ position:absolute; width:12.5%; height:12.5%;
+  display:flex; align-items:center; justify-content:center; pointer-events:none; }
+.fx-tilt{ position:relative; display:flex; align-items:center; justify-content:center;
+  animation:fxPop .9s cubic-bezier(.22,1.1,.35,1) forwards; }
+.fx-burst{ position:absolute; width:240%; height:240%; overflow:visible; }
+.fx-spin{ transform-box:fill-box; transform-origin:center; animation:spinIn .4s cubic-bezier(.2,.9,.3,1.25) both; }
+.fx-word{
+  position:relative; font-family:var(--display); font-weight:700; font-style:italic;
+  font-size:clamp(17px,3.8vmin,32px); line-height:1; color:#ffdf4a; letter-spacing:.01em;
+  text-shadow:
+    -2px -2px 0 #1a1208, 2px -2px 0 #1a1208, -2px 2px 0 #1a1208, 2px 2px 0 #1a1208,
+    -2.5px 0 0 #1a1208, 2.5px 0 0 #1a1208, 0 -2.5px 0 #1a1208, 0 2.5px 0 #1a1208,
+    3px 4px 0 #1a1208, 0 8px 14px rgba(0,0,0,.55);
+  transform:skewX(-7deg);
+}
+@keyframes fxPop{
+  0%  { transform:scale(.1);  opacity:0; }
+  14% { transform:scale(1.32); opacity:1; }
+  26% { transform:scale(.94); }
+  38% { transform:scale(1.06); }
+  62% { transform:scale(1);   opacity:1; }
+  100%{ transform:scale(1.07) translateY(-30%); opacity:0; }
+}
+@keyframes spinIn{ from{ transform:rotate(-42deg) scale(.35); } to{ transform:rotate(0) scale(1); } }
+
+/* ---------- Panel samping ---------- */
+.turn-pill{
+  display:inline-flex; align-items:center; gap:9px;
+  padding:11px 18px; border-radius:999px;
+  background:rgba(255,255,255,.04); border:1px solid rgba(212,175,106,.28);
+  font-size:10px; font-weight:700; letter-spacing:.26em; text-indent:.1em; color:var(--ivory);
+  white-space:nowrap;
+}
+.tp-dot{
+  width:9px; height:9px; border-radius:50%; flex:none;
+  border:1px solid rgba(0,0,0,.4);
+  box-shadow:0 0 0 3px rgba(212,175,106,.16); transition:.3s;
+}
+.tp-dots{ display:none; gap:3px; }
+.turn-pill.thinking .tp-dots{ display:inline-flex; }
+.tp-dots i{ width:4px; height:4px; border-radius:50%; background:var(--gold); animation:dotB 1s infinite; }
+.tp-dots i:nth-child(2){ animation-delay:.15s; } .tp-dots i:nth-child(3){ animation-delay:.3s; }
+@keyframes dotB{ 0%,60%,100%{ transform:none; opacity:.4 } 30%{ transform:translateY(-4px); opacity:1 } }
+.turn-pill.thinking .tp-dot{ animation:tpPulse 1.2s infinite; }
+@keyframes tpPulse{ 50%{ opacity:.4 } }
+#checkBadge{
+  display:inline-flex; align-items:center; gap:7px;
+  padding:9px 14px; border-radius:999px;
+  background:rgba(120,32,22,.16); border:1px solid rgba(196,74,54,.55);
+  color:#e2a08e; font-size:10px; font-weight:700; letter-spacing:.3em; text-indent:.1em;
+  opacity:0; visibility:hidden; transform:translateY(4px);
+  transition:opacity .25s, transform .25s, visibility 0s .25s;
+}
+#checkBadge.show{ opacity:1; visibility:visible; transform:none; transition:opacity .25s, transform .25s, visibility 0s; }
+#checkBadge::before{
+  content:''; width:7px; height:7px; border-radius:50%;
+  background:var(--danger); box-shadow:0 0 8px rgba(201,80,60,.8);
+  animation:checkPulse 1.1s ease-in-out infinite;
+}
+.timebox{ display:none; align-items:center; gap:8px; width:100%; max-width:200px; }
+.timebox.on{ display:flex; }
+.timebar{
+  flex:1; height:6px; border-radius:999px; overflow:hidden;
+  background:rgba(255,255,255,.08);
+  box-shadow:inset 0 1px 2px rgba(0,0,0,.4);
+}
+#timeFill{ display:block; height:100%; width:100%; border-radius:999px; background:var(--gold); }
+.timebox.low #timeFill{ background:var(--danger); }
+.timenum{ font-size:10px; font-weight:700; color:var(--ivory-dim); min-width:24px; text-align:right; }
+.timebox.low .timenum{ color:#e2a08e; animation:checkPulse .8s infinite; }
+.sp-hint{ font-size:9px; letter-spacing:.2em; text-align:center; color:#6d604a; line-height:1.8; }
+
+/* Portrait fallback: panel bar bawah; papan prioritas lebar layar */
+@media (orientation:portrait){
+  .game-wrap{ flex-direction:column; }
+  .board-side{ padding:8px; }
+  .side-panel{
+    width:100%; height:auto;
+    flex-direction:row; flex-wrap:wrap; align-items:center;
+    padding:6px 14px calc(10px + env(safe-area-inset-bottom));
+    gap:10px;
+    border-left:none; border-top:1px solid rgba(255,255,255,.06);
+  }
+  .sp-top{ flex-direction:row; align-items:center; gap:10px; }
+  .gt-name{ font-size:9px; }
+  .sp-mid{ margin:0 0 0 auto; flex-direction:row; width:auto; }
+  .timebox{ flex:1 1 130px; width:auto; max-width:160px; }
+  .sp-foot{ margin:0 0 0 auto; }
+  .icon-btn.wide{ width:auto; }
+  .sp-hint{ display:none; }
+  .board-frame{ width:min(100vw, 96dvh, 720px); }
+}
+
+/* ============================================================
+   SLAM OVERLAY KOF/TAKEN — SMOOTH
+   ============================================================ */
+#vsWrap{
+  position:fixed; inset:0; z-index:80; display:none; overflow:hidden;
+  pointer-events:none; transform:translateZ(0); will-change:transform;
+}
+#vsWrap.show{ display:block; }
+#vsWrap.impact{ animation:vsImpact .42s ease-out; }
+@keyframes vsImpact{
+  16%{ transform:translate(-7px,4px) translateZ(0); }
+  36%{ transform:translate(6px,-3px) translateZ(0); }
+  58%{ transform:translate(-4px,2px) translateZ(0); }
+  80%{ transform:translate(2px,-1px) translateZ(0); }
+}
+.vs-band{
+  position:absolute; top:-12%; bottom:-12%; width:58%; opacity:.94;
+  will-change:transform; transform:translateZ(0) skewX(-12deg);
+}
+.vs-band.l{
+  left:-16%;
+  background:linear-gradient(160deg,#301410,#4a1d14 60%,#301410);
+  border-right:3px solid var(--gold);
+  box-shadow:14px 0 40px rgba(0,0,0,.45);
+  animation:bandL .38s cubic-bezier(.22,1,.36,1) both;
+}
+.vs-band.r{
+  right:-16%;
+  background:linear-gradient(200deg,#241a0b,#3a2a10 60%,#241a0b);
+  border-left:3px solid var(--gold);
+  box-shadow:-14px 0 40px rgba(0,0,0,.45);
+  animation:bandR .38s cubic-bezier(.22,1,.36,1) both;
+}
+#vsWrap.danger .vs-band.l{ background:linear-gradient(160deg,#3a0f0c,#5e1d12 60%,#3a0f0c); }
+@keyframes bandL{
+  from{ transform:translateX(-135%) translateZ(0) skewX(-12deg); }
+  to  { transform:translateX(0) translateZ(0) skewX(-12deg); }
+}
+@keyframes bandR{
+  from{ transform:translateX(135%) translateZ(0) skewX(-12deg); }
+  to  { transform:translateX(0) translateZ(0) skewX(-12deg); }
+}
+.vs-lines{
+  position:absolute; inset:-20%;
+  background:repeating-linear-gradient(-22deg, transparent 0 46px, rgba(255,235,180,.05) 46px 52px);
+  will-change:transform; transform:translateZ(0);
+  animation:vsLines 1.4s linear both;
+}
+@keyframes vsLines{ from{ transform:translateX(-6%) translateZ(0); } to{ transform:translateX(6%) translateZ(0); } }
+.vs-flash{
+  position:absolute; inset:0;
+  background:radial-gradient(circle at 50% 45%, rgba(255,244,214,.85), rgba(255,244,214,0) 62%);
+  will-change:opacity; animation:vsFlash .45s ease-out both;
+}
+@keyframes vsFlash{ from{opacity:1;} to{opacity:0;} }
+.vs-tilt{
+  position:absolute; inset:0; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; gap:2vmin;
+  transform:skewX(-8deg) translateZ(0);
+}
+.vs-text{
+  font-family:var(--display); font-weight:700; font-style:italic; line-height:1;
+  font-size:clamp(46px,13vmin,110px); color:#ffd94a; letter-spacing:.03em; white-space:nowrap;
+  text-shadow:
+    -3px -3px 0 #1a1208, 3px -3px 0 #1a1208, -3px 3px 0 #1a1208, 3px 3px 0 #1a1208,
+    -4px 0 0 #1a1208, 4px 0 0 #1a1208, 0 -4px 0 #1a1208, 0 4px 0 #1a1208,
+    0 12px 26px rgba(0,0,0,.55);
+  will-change:transform,opacity;
+  transform:scale(4.2); opacity:0;
+  animation:vsSlam .38s cubic-bezier(.2,1.1,.3,1) both, vsFade .3s ease-in 1.15s both;
+}
+#vsWrap.danger .vs-text{ color:#ff7a55; }
+@keyframes vsSlam{ 55%{ opacity:1; } 100%{ transform:scale(1); opacity:1; } }
+@keyframes vsFade{ to{ opacity:0; transform:scale(1.1); } }
+.vs-sub{
+  font-size:clamp(10px,2.2vmin,15px); font-weight:700; letter-spacing:.4em; text-indent:.4em;
+  color:var(--ivory); text-shadow:0 2px 8px rgba(0,0,0,.7); white-space:nowrap;
+  will-change:transform,opacity;
+  animation:vsSubIn .4s .16s ease both, vsFade .3s ease-in 1.15s both;
+}
+@keyframes vsSubIn{ from{ opacity:0; transform:translateY(10px); } to{ opacity:1; transform:none; } }
+
+/* ---------- Toast ---------- */
+#toastWrap{
+  position:fixed; left:50%; top:16px; transform:translateX(-50%); z-index:120;
+  display:flex; flex-direction:column; gap:8px; align-items:center; pointer-events:none;
+}
+.toast{
+  background:#241a10; border:1px solid var(--gold-dim); color:var(--ivory);
+  font-size:11px; font-weight:700; letter-spacing:.16em; text-align:center;
+  padding:12px 18px; border-radius:12px; max-width:86vw; line-height:1.7;
+  box-shadow:0 10px 30px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.05);
+  opacity:0; transform:translateY(-8px); transition:opacity .3s, transform .3s;
+}
+.toast.on{ opacity:1; transform:none; }
+
+/* ============================================================
+   GATE — TRANSISI LAYAR TERBELAH
+   ============================================================ */
+#gateWrap{ position:fixed; inset:0; z-index:90; display:none; pointer-events:none; overflow:hidden; }
+#gateWrap.on{ display:block; }
+.gate{
+  position:absolute; top:-12%; bottom:-12%; width:60%;
+  will-change:transform; transform:translateZ(0) skewX(-12deg);
+}
+.gate.l{
+  left:-18%;
+  background:linear-gradient(160deg,#2a1c0e,#3e2c15 60%,#2a1c0e);
+  border-right:3px solid var(--gold);
+  box-shadow:14px 0 44px rgba(0,0,0,.5);
+}
+.gate.r{
+  right:-18%;
+  background:linear-gradient(200deg,#241a0b,#34250f 60%,#241a0b);
+  border-left:3px solid var(--gold);
+  box-shadow:-14px 0 44px rgba(0,0,0,.5);
+}
+.gate-seam{
+  position:absolute; left:50%; top:0; bottom:0; width:4px;
+  transform:translateX(-50%) translateZ(0) skewX(-12deg) scaleY(0);
+  background:var(--gold);
+  box-shadow:0 0 26px rgba(212,175,106,.85);
+  opacity:0; will-change:transform,opacity;
+}
+#gateWrap.close .gate.l{ animation:gateL .42s cubic-bezier(.6,0,.35,1) both; }
+#gateWrap.close .gate.r{ animation:gateR .42s cubic-bezier(.6,0,.35,1) both; }
+#gateWrap.close .gate-seam{ animation:seamIn .32s .2s ease-out both; }
+@keyframes gateL{ from{ transform:translateX(-118%) translateZ(0) skewX(-12deg); } to{ transform:translateX(0) translateZ(0) skewX(-12deg); } }
+@keyframes gateR{ from{ transform:translateX(118%) translateZ(0) skewX(-12deg); } to{ transform:translateX(0) translateZ(0) skewX(-12deg); } }
+@keyframes seamIn{ from{ opacity:0; transform:translateX(-50%) translateZ(0) skewX(-12deg) scaleY(0); } to{ opacity:1; transform:translateX(-50%) translateZ(0) skewX(-12deg) scaleY(1); } }
+#gateWrap.open .gate.l{ animation:gateLo .55s cubic-bezier(.7,0,.2,1) both; }
+#gateWrap.open .gate.r{ animation:gateRo .55s cubic-bezier(.7,0,.2,1) both; }
+#gateWrap.open .gate-seam{ animation:seamOut .3s ease-in both; }
+@keyframes gateLo{ from{ transform:translateX(0) translateZ(0) skewX(-12deg); } to{ transform:translateX(-130%) translateZ(0) skewX(-12deg); } }
+@keyframes gateRo{ from{ transform:translateX(0) translateZ(0) skewX(-12deg); } to{ transform:translateX(130%) translateZ(0) skewX(-12deg); } }
+@keyframes seamOut{ from{ opacity:1; } to{ opacity:0; } }
+
+/* ============================================================
+   PANEL LEVEL, SETTINGS & PROMOTION
+   ============================================================ */
+#panelWrap{
+  position:fixed; inset:0; z-index:50;
+  display:flex; align-items:flex-end; justify-content:center;
+  background:rgba(8,5,2,.62); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+  opacity:0; visibility:hidden; transition:opacity .3s, visibility 0s .3s;
+}
+#panelWrap.open{ opacity:1; visibility:visible; transition:opacity .3s; }
+#panelWrap.center{ align-items:center; padding:16px; }
+.panel{
+  width:min(460px,100%);
+  background:#1c1610; border:1px solid #3b2f1d; border-bottom:none;
+  border-radius:20px 20px 0 0;
+  padding:18px 22px calc(26px + env(safe-area-inset-bottom));
+  transform:translateY(46px); transition:transform .35s cubic-bezier(.2,.9,.25,1);
+  max-height:86dvh; overflow:auto;
+}
+#panelWrap.center .panel{
+  width:min(400px,94vw);
+  border:1px solid #3b2f1d; border-radius:20px;
+  padding:18px 22px 22px;
+  box-shadow:0 30px 70px -20px rgba(0,0,0,.7), inset 0 1px 0 rgba(255,255,255,.05);
+  transform:translateY(20px) scale(.97);
+}
+#panelWrap.open .panel:not([hidden]){ transform:none; }
+.panel[hidden]{ display:none; }
+.panel-head{ display:flex; align-items:center; justify-content:center; position:relative; padding-bottom:8px; }
+.panel-title{ font-family:var(--display); font-weight:700; font-size:14px; letter-spacing:.32em; text-indent:.32em; color:var(--gold); }
+.x-btn{
+  position:absolute; right:-6px; top:-4px;
+  width:36px; height:36px; border-radius:10px; cursor:pointer;
+  background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.12); color:var(--ivory-dim);
+  display:flex; align-items:center; justify-content:center; transition:.15s;
+}
+.x-btn svg{ width:13px; height:13px; }
+.x-btn:hover{ color:var(--ivory); border-color:rgba(212,175,106,.45); }
+.panel-sub{ font-size:10px; letter-spacing:.14em; color:#8d7f63; text-align:center; padding-bottom:6px; }
+.set-note{ font-size:9px; letter-spacing:.12em; color:#6d604a; padding:8px 0 0; }
+
+.lv-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:10px; padding-top:10px; }
+.lv{
+  aspect-ratio:1; border-radius:12px; cursor:pointer;
+  background:#241c11; border:1px solid #3b2f1d; color:var(--ivory);
+  font-family:var(--display); font-weight:700; font-size:18px; letter-spacing:.08em;
+  display:flex; align-items:center; justify-content:center; transition:.15s;
+}
+.lv:hover{ border-color:#6b5734; }
+.lv.current{ border-color:var(--gold); color:var(--gold); box-shadow:0 0 0 1px rgba(212,175,106,.3), inset 0 0 16px rgba(212,175,106,.08); }
+.lv.locked{ color:#5c5140; cursor:not-allowed; }
+.lv.locked svg{ width:16px; height:16px; }
+.lv.deny{ animation:deny .35s; }
+@keyframes deny{ 25%{transform:translateX(-4px)} 50%{transform:translateX(4px)} 75%{transform:translateX(-3px)} }
+
+.promo-grid{ display:flex; flex-wrap:wrap; gap:10px; padding-top:10px; justify-content:center; }
+.ptile{
+  width:calc((100% - 30px)/4); aspect-ratio:1; border-radius:12px; cursor:pointer;
+  background:#241c11; border:1px solid #3b2f1d;
+  display:flex; align-items:center; justify-content:center; padding:14%;
+  transition:.15s;
+}
+.promo-grid.cw .ptile{ --p-main:#eee1c2; --p-hi:#faf3e0; --p-lo:#c6b183; --p-line:#57431f; --p-det:#4d3b1e; }
+.promo-grid.cb .ptile{ --p-main:#3a3d47; --p-hi:#5d616d; --p-lo:#23252d; --p-line:#0a0b0f; --p-det:#a9aebc; }
+.ptile svg{ width:100%; height:100%; overflow:visible; filter:drop-shadow(0 4px 4px rgba(0,0,0,.4)); pointer-events:none; }
+.ptile:hover{ border-color:#6b5734; transform:translateY(-2px); }
+.ptile:active{ transform:scale(.95); }
+
+.set-row{ display:flex; align-items:center; justify-content:space-between; padding:15px 0; border-bottom:1px solid rgba(255,255,255,.05); }
+.set-row.col{ flex-direction:column; align-items:flex-start; gap:12px; }
+.set-row>span{ font-size:11px; font-weight:700; letter-spacing:.25em; color:#bfb298; }
+.switch{
+  width:46px; height:26px; border-radius:999px; position:relative; cursor:pointer;
+  background:#241c11; border:1px solid #3b2f1d; transition:.2s;
+}
+.switch::after{
+  content:''; position:absolute; top:2px; left:2px; width:20px; height:20px; border-radius:50%;
+  background:#6b5a3a; transition:.2s cubic-bezier(.3,.9,.3,1.3);
+}
+.switch[aria-pressed="true"]{ background:#43341a; border-color:var(--gold-dim); }
+.switch[aria-pressed="true"]::after{ left:22px; background:var(--gold); }
+.seg{ display:flex; border:1px solid #3b2f1d; border-radius:10px; overflow:hidden; }
+.seg button{
+  background:none; border:none; cursor:pointer; color:#8d7f63;
+  padding:9px 13px; font-family:var(--ui); font-weight:700; font-size:10px; letter-spacing:.14em;
+  transition:.15s;
+}
+.seg button.on{ background:var(--gold); color:#241a0b; }
+.swatches{ display:flex; gap:10px; }
+.swatch{
+  width:58px; height:42px; border-radius:9px; border:2px solid transparent; cursor:pointer;
+  display:grid; grid-template-columns:1fr 1fr; overflow:hidden; padding:0; background:none; transition:.15s;
+}
+.swatch.sel{ border-color:var(--gold); box-shadow:0 0 0 1px rgba(212,175,106,.35); }
+.swatch i{ display:block; }
+.swatch[data-t="walnut"] i:nth-child(odd){ background:#e9dab8; } .swatch[data-t="walnut"] i:nth-child(even){ background:#7c5741; }
+.swatch[data-t="emerald"] i:nth-child(odd){ background:#e7e5d4; } .swatch[data-t="emerald"] i:nth-child(even){ background:#5d7b5f; }
+.swatch[data-t="slate"] i:nth-child(odd){ background:#e0e4e9; } .swatch[data-t="slate"] i:nth-child(even){ background:#5f6d7e; }
+
+/* ============================================================
+   RESULT MODAL
+   ============================================================ */
+#resultWrap{
+  position:fixed; inset:0; z-index:60;
+  display:flex; align-items:center; justify-content:center; padding:20px;
+  background:rgba(8,5,2,.7); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
+  opacity:0; visibility:hidden; transition:opacity .35s, visibility 0s .35s;
+}
+#resultWrap.open{ opacity:1; visibility:visible; transition:opacity .35s, visibility 0s; }
+.result-card{
+  width:min(360px,92vw); text-align:center;
+  background:#1c1610; border:1px solid #3b2f1d; border-radius:20px;
+  padding:20px 24px 20px;
+  box-shadow:0 30px 70px -20px rgba(0,0,0,.7), inset 0 1px 0 rgba(255,255,255,.05);
+  transform:translateY(26px) scale(.96);
+  transition:transform .4s cubic-bezier(.2,.9,.25,1.15);
+  max-height:92dvh; overflow:auto;
+}
+#resultWrap.open .result-card{ transform:none; }
+.result-mascot .mascot{ width:clamp(70px,14vmin,104px); display:block; margin:0 auto 2px; }
+#rLives{ justify-content:center; margin:6px 0 2px; }
+.r-label{
+  font-family:var(--display); font-weight:700; line-height:1.1;
+  font-size:clamp(22px,5.5vmin,32px); letter-spacing:.18em; text-indent:.18em; color:var(--ivory);
+}
+.r-verdict{ margin-top:10px; font-size:13px; font-weight:700; letter-spacing:.42em; text-indent:.42em; }
+.r-verdict.win{ color:var(--gold); }
+.r-verdict.lose{ color:#c65a48; }
+.r-verdict.draw{ color:var(--ivory-dim); }
+.r-sub{ margin-top:8px; font-size:10px; font-weight:700; letter-spacing:.3em; text-indent:.3em; color:#8d7f63; }
+.r-sub.gold{ color:var(--gold); }
+.r-btns{ display:flex; flex-direction:column; gap:10px; margin-top:20px; }
+.r-btns .btn{ min-width:0; padding:12px 20px; font-size:12px; }
+
+/* ============================================================
+   ROTATE HINT
+   ============================================================ */
+#rotateWrap{
+  position:fixed; inset:0; z-index:200;
+  display:none; flex-direction:column; align-items:center; justify-content:center; gap:22px;
+  background:#0b0805; text-align:center; padding:24px;
+}
+#rotateWrap.show{ display:flex; }
+.phone{
+  width:44px; height:78px; border-radius:10px;
+  border:3px solid var(--gold);
+  animation:rotDev 2.4s ease-in-out infinite;
+}
+@keyframes rotDev{
+  0%,18%{ transform:rotate(0); }
+  55%,82%{ transform:rotate(-90deg); }
+  100%{ transform:rotate(-90deg); }
+}
+.rot-title{ font-family:var(--display); font-weight:700; font-size:16px; letter-spacing:.34em; text-indent:.34em; color:var(--ivory); }
+.rot-sub{ font-size:10px; letter-spacing:.22em; color:#8d7f63; line-height:2; }
+.rot-skip{
+  margin-top:6px; background:none; border:1px solid #3b2f1d; border-radius:10px;
+  color:var(--ivory-dim); padding:10px 22px; cursor:pointer;
+  font-family:var(--ui); font-weight:700; font-size:10px; letter-spacing:.3em; text-indent:.3em;
+  transition:.15s;
+}
+.rot-skip:hover{ border-color:#6b5734; color:var(--ivory); }
+
+@media (prefers-reduced-motion:reduce){
+  *{ animation-duration:.01ms !important; transition-duration:.01ms !important; }
+}
+</style>
+</head>
+<body class="theme-walnut">
+
+<!-- SPRITE BIDAK -->
+<svg id="pcSprite" width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <linearGradient id="gSh" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ffffff" stop-opacity=".22"/>
+      <stop offset=".42" stop-color="#ffffff" stop-opacity="0"/>
+      <stop offset=".6" stop-color="#000000" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000000" stop-opacity=".22"/>
+    </linearGradient>
+  </defs>
+
+  <g id="pc-p">
+    <circle id="sPa" cx="50" cy="26" r="12.5"/>
+    <path id="sPb" d="M44.5 38 C44.5 47, 41.5 54, 37.5 60 L62.5 60 C58.5 54, 55.5 47, 55.5 38 Z"/>
+    <path id="sPd" d="M37 63 L63 63 L66 71 L34 71 Z"/>
+    <rect id="sPe" x="31" y="70" width="38" height="8" rx="3.5"/>
+    <rect id="sPf" x="26" y="77" width="48" height="11" rx="5"/>
+    <clipPath id="cpP"><use href="#sPa"/><use href="#sPb"/><use href="#sPd"/><use href="#sPe"/><use href="#sPf"/></clipPath>
+    <g fill="var(--p-main)" stroke="var(--p-line)" stroke-width="2" stroke-linejoin="round">
+      <use href="#sPa"/><use href="#sPb"/><use href="#sPd"/>
+    </g>
+    <rect x="20" y="0" width="60" height="92" fill="url(#gSh)" clip-path="url(#cpP)"/>
+    <use href="#sPe" fill="var(--p-lo)" stroke="var(--p-line)" stroke-width="2"/>
+    <use href="#sPf" fill="var(--p-lo)" stroke="var(--p-line)" stroke-width="2"/>
+    <ellipse cx="50" cy="59" rx="14.5" ry="4.2" fill="var(--p-hi)" stroke="var(--p-line)" stroke-width="2"/>
+    <path d="M42.5 21 A12.5 12.5 0 0 1 49 14.5" stroke="rgba(255,255,255,.55)" stroke-width="3" fill="none" stroke-linecap="round"/>
+  </g>
+
+  <g id="pc-r">
+    <path id="sRa" d="M30 12 L40 12 L40 19 L46 19 L46 12 L54 12 L54 19 L60 19 L60 12 L70 12 L70 31 L30 31 Z"/>
+    <path id="sRb" d="M35 33 C36.5 44, 35.5 55, 31.5 64 L68.5 64 C64.5 55, 63.5 44, 65 33 Z"/>
+    <rect id="sRc" x="29" y="29" width="42" height="7" rx="2.5"/>
+    <rect id="sRd" x="30" y="68" width="40" height="8" rx="3.5"/>
+    <rect id="sRe" x="25" y="75" width="50" height="12" rx="5"/>
+    <clipPath id="cpR"><use href="#sRa"/><use href="#sRb"/><use href="#sRd"/><use href="#sRe"/></clipPath>
+    <g fill="var(--p-main)" stroke="var(--p-line)" stroke-width="2" stroke-linejoin="round">
+      <use href="#sRa"/><use href="#sRb"/>
+    </g>
+    <rect x="20" y="0" width="60" height="92" fill="url(#gSh)" clip-path="url(#cpR)"/>
+    <use href="#sRc" fill="var(--p-hi)" stroke="var(--p-line)" stroke-width="2"/>
+    <use href="#sRd" fill="var(--p-lo)" stroke="var(--p-line)" stroke-width="2"/>
+    <use href="#sRe" fill="var(--p-lo)" stroke="var(--p-line)" stroke-width="2"/>
+    <path d="M42 40 C42.5 48, 42 55, 40.5 61 M58 40 C57.5 48, 58 55, 59.5 61" stroke="var(--p-line)" stroke-width="1.5" fill="none" stroke-linecap="round" opacity=".35"/>
+  </g>
+
+  <g id="pc-n">
+    <path id="sNa" d="M36 78 C36 70, 33 64, 31 58 C29 52, 30 46, 35 43 C30 42, 26 38, 25 33 C24 28, 26 24, 30 22 C28 19, 29 15, 33 14 C38 11, 44 8, 50 7 L54 1 C55.5 -1.5, 59 -1, 59.5 2 L60.5 9 C67 11, 73 17, 76.5 25 C80.5 34, 81 44, 78.5 54 C76 63, 71.5 71.5, 68 78 Z"/>
+    <rect id="sNb" x="27" y="70" width="40" height="8" rx="3.5"/>
+    <rect id="sNc" x="23" y="77" width="48" height="11" rx="5"/>
+    <clipPath id="cpN"><use href="#sNa"/><use href="#sNb"/><use href="#sNc"/></clipPath>
+    <g fill="var(--p-main)" stroke="var(--p-line)" stroke-width="2" stroke-linejoin="round">
+      <use href="#sNa"/>
+    </g>
+    <path d="M59 10 C66 15, 71 22, 74 30 C77 38, 77.5 46, 75.5 54 C73.5 62, 70 70, 66.5 78 L59 78 C62.5 70, 66 62, 67.5 54 C69.5 44, 68.5 34, 64 26 C61 20, 57.5 15, 55.5 11 C56.5 9.5, 58 9.5, 59 10 Z" fill="var(--p-lo)"/>
+    <use href="#sNa" fill="none" stroke="var(--p-line)" stroke-width="2"/>
+    <rect x="20" y="0" width="60" height="92" fill="url(#gSh)" clip-path="url(#cpN)"/>
+    <circle cx="43" cy="22.5" r="2.4" fill="var(--p-det)"/>
+    <g class="knight-face"><circle cx="42.2" cy="21.7" r=".8" fill="rgba(255,255,255,.85)"/></g>
+    <path d="M29 35 C33 38, 38 39, 43 39" stroke="var(--p-line)" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+    <path d="M32 27 C30 28.5, 29.5 30.5, 31 32.5 C33.5 32, 34.5 29, 32 27 Z" fill="var(--p-det)" opacity=".9"/>
+    <path d="M55 3 C55.5 5, 55.8 7, 55.6 9" stroke="var(--p-line)" stroke-width="1.2" fill="none" stroke-linecap="round" opacity=".5"/>
+    <path d="M34 14 C39 11, 44 9.5, 49 9" stroke="rgba(255,255,255,.35)" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+  </g>
+
+  <g id="pc-b">
+    <circle id="sBa" cx="50" cy="9" r="5"/>
+    <path id="sBb" d="M50 15 C60 22, 66 31, 66 40 C66 49, 59 55, 50 55 C41 55, 34 49, 34 40 C34 31, 40 22, 50 15 Z"/>
+    <path id="sBc" d="M42.5 58 C42.5 64, 39.5 68, 36.5 72 L63.5 72 C60.5 68, 57.5 64, 57.5 58 Z"/>
+    <rect id="sBd" x="30" y="70" width="40" height="8" rx="3.5"/>
+    <rect id="sBe" x="25" y="77" width="50" height="11" rx="5"/>
+    <clipPath id="cpB"><use href="#sBa"/><use href="#sBb"/><use href="#sBc"/><use href="#sBd"/><use href="#sBe"/></clipPath>
+    <g fill="var(--p-main)" stroke="var(--p-line)" stroke-width="2" stroke-linejoin="round">
+      <use href="#sBa"/><use href="#sBb"/><use href="#sBc"/>
+    </g>
+    <rect x="20" y="0" width="60" height="92" fill="url(#gSh)" clip-path="url(#cpB)"/>
+    <use href="#sBd" fill="var(--p-lo)" stroke="var(--p-line)" stroke-width="2"/>
+    <use href="#sBe" fill="var(--p-lo)" stroke="var(--p-line)" stroke-width="2"/>
+    <ellipse cx="50" cy="56.5" rx="14" ry="4.2" fill="var(--p-hi)" stroke="var(--p-line)" stroke-width="2"/>
+    <path d="M55.5 24 L44.5 42" stroke="var(--p-line)" stroke-width="3" stroke-linecap="round"/>
+    <path d="M41 27 C44 23, 47 20, 50 18.5" stroke="rgba(255,255,255,.45)" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+  </g>
+
+  <g id="pc-q">
+    <path id="sQa" d="M28 20 L34.5 44 L65.5 44 L72 20 L61 32 L56 16 L50 28 L44 16 L39 32 Z"/>
+    <path id="sQb" d="M44 43 L56 43 L56 50 L44 50 Z"/>
+    <path id="sQc" d="M41 50 C41 58, 38 67, 34.5 73 L65.5 73 C62 67, 59 58, 59 50 Z"/>
+    <rect id="sQd" x="29" y="70" width="42" height="8" rx="3.5"/>
+    <rect id="sQe" x="24" y="77" width="52" height="11" rx="5"/>
+    <clipPath id="cpQ"><use href="#sQa"/><use href="#sQb"/><use href="#sQc"/><use href="#sQd"/><use href="#sQe"/></clipPath>
+    <g fill="var(--p-main)" stroke="var(--p-line)" stroke-width="2" stroke-linejoin="round">
+      <use href="#sQa"/><use href="#sQb"/><use href="#sQc"/>
+    </g>
+    <rect x="20" y="0" width="60" height="92" fill="url(#gSh)" clip-path="url(#cpQ)"/>
+    <g fill="var(--p-main)" stroke="var(--p-line)" stroke-width="2">
+      <circle cx="28" cy="15" r="3.4"/><circle cx="44" cy="11" r="3.4"/>
+      <circle cx="56" cy="11" r="3.4"/><circle cx="72" cy="15" r="3.4"/>
+    </g>
+    <use href="#sQd" fill="var(--p-lo)" stroke="var(--p-line)" stroke-width="2"/>
+    <use href="#sQe" fill="var(--p-lo)" stroke="var(--p-line)" stroke-width="2"/>
+    <ellipse cx="50" cy="47.5" rx="16" ry="4.4" fill="var(--p-hi)" stroke="var(--p-line)" stroke-width="2"/>
+    <path d="M33 24 C36 20, 39 17.5, 42.5 15.5" stroke="rgba(255,255,255,.4)" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+  </g>
+
+  <g id="pc-k">
+    <path id="sKa" d="M46.5 1 L53.5 1 L53.5 7.5 L60 7.5 L60 14.5 L53.5 14.5 L53.5 21 L46.5 21 L46.5 14.5 L40 14.5 L40 7.5 L46.5 7.5 Z"/>
+    <circle id="sK0" cx="50" cy="24.5" r="3.6"/>
+    <path id="sKb" d="M38.5 46 C38.5 32, 43.5 26, 50 26 C56.5 26, 61.5 32, 61.5 46 Z"/>
+    <path id="sKc" d="M39.5 51 C39.5 60, 36.5 68, 32.5 74 L67.5 74 C63.5 68, 60.5 60, 60.5 51 Z"/>
+    <rect id="sKd" x="28" y="70" width="44" height="8" rx="3.5"/>
+    <rect id="sKe" x="23" y="77" width="54" height="11" rx="5"/>
+    <clipPath id="cpK"><use href="#sKa"/><use href="#sK0"/><use href="#sKb"/><use href="#sKc"/><use href="#sKd"/><use href="#sKe"/></clipPath>
+    <g fill="var(--p-main)" stroke="var(--p-line)" stroke-width="2" stroke-linejoin="round">
+      <use href="#sKb"/><use href="#sKc"/>
+    </g>
+    <rect x="20" y="0" width="60" height="92" fill="url(#gSh)" clip-path="url(#cpK)"/>
+    <use href="#sKa" fill="var(--p-main)" stroke="var(--p-line)" stroke-width="2"/>
+    <use href="#sK0" fill="var(--p-main)" stroke="var(--p-line)" stroke-width="2"/>
+    <rect id="sKf" x="34" y="44" width="32" height="7.5" rx="2.5" fill="var(--p-hi)" stroke="var(--p-line)" stroke-width="2"/>
+    <use href="#sKd" fill="var(--p-lo)" stroke="var(--p-line)" stroke-width="2"/>
+    <use href="#sKe" fill="var(--p-lo)" stroke="var(--p-line)" stroke-width="2"/>
+    <ellipse cx="50" cy="50.5" rx="17" ry="4.4" fill="var(--p-hi)" stroke="var(--p-line)" stroke-width="2"/>
+    <path d="M43 32 C44 29, 45.5 27.5, 47.5 26.5" stroke="rgba(255,255,255,.45)" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+  </g>
+</svg>
+
+<!-- 1. OPENING — brand stack: CRO di atas, CHESS KING di bawah -->
+<section id="scr-opening" class="screen active">
+  <div class="stage">
+    <div class="kn-stage" id="knStage">
+      <div class="kn-shadow"></div>
+      <div class="kn-move">
+        <div class="kn-hop">
+          <div class="kn-flip" id="knFlip"></div>
+        </div>
+      </div>
+    </div>
+    <div class="title" id="openTitle">
+      <div class="brand-stack">
+        <div class="bs-cro">CRO</div>
+        <div class="bs-sub">
+          <span class="bs-line"></span>
+          <span class="bs-txt">CHESS KING</span>
+          <span class="bs-line r"></span>
+        </div>
+      </div>
+    </div>
+    <div class="t ap-hint tap-hint" id="tapHint">TAP ANYWHERE TO CONTINUE</div>
+  </div>
+</section>
+
+<!-- 2. MAIN LOBBY -->
+<section id="scr-menu" class="screen">
+  <div class="lobby">
+    <div class="lobby-left">
+      <div class="lobby-glow"></div>
+      <div class="menu-mascot" id="menuMascot"></div>
+      <header class="brand">
+        <div class="brand-stack">
+          <div class="bs-cro">CRO</div>
+          <div class="bs-sub">
+            <span class="bs-line"></span>
+            <span class="bs-txt">CHESS KING</span>
+            <span class="bs-line r"></span>
+          </div>
+        </div>
+      </header>
+    </div>
+    <div class="lobby-right">
+      <div class="lobby-stats">
+        <span class="chip" id="lobbyLv">LV 01</span>
+        <div class="lives" id="menuLives"></div>
+      </div>
+      <nav class="menu-nav">
+        <button class="btn big" id="btn1P">
+          <span class="b-ic">&#9812;</span>
+          <span class="b-tx"><b>1 PLAYER</b><i>VS AI</i></span>
+          <span class="b-ar">&#8250;</span>
+        </button>
+        <button class="btn big" id="btn2P">
+          <span class="b-ic">&#9822;</span>
+          <span class="b-tx"><b>PLAYER 2</b></span>
+          <span class="b-ar">&#8250;</span>
+        </button>
+        <div class="menu-row">
+          <button class="btn half" id="btnLevels"><span>LEVEL</span><span class="b-ar">&#8250;</span></button>
+          <button class="btn half" id="btnSettings"><span>SETTINGS</span><span class="b-ar">&#8250;</span></button>
+        </div>
+      </nav>
+      <footer class="lobby-foot">GAME CREATE BY ROJA V.1.6.0</footer>
+    </div>
+  </div>
+</section>
+
+<!-- 3. CHESS SCREEN -->
+<section id="scr-game" class="screen">
+  <div class="game-wrap">
+    <div class="board-side">
+      <div class="board-frame" id="boardFrame">
+        <div class="coord files" id="filesCoord"></div>
+        <div class="coord ranks" id="ranksCoord"></div>
+        <div class="board" id="board">
+          <div class="squares" id="squares"></div>
+          <div class="marks" id="marks"></div>
+          <div class="pieces" id="pieces"></div>
+          <div class="fx-layer" id="fxLayer"></div>
+        </div>
+      </div>
+    </div>
+    <aside class="side-panel">
+      <div class="sp-top">
+        <span class="gt-name">CRO CHESS KING</span>
+        <span class="gt-lv" id="lvChip">LV 01</span>
+        <div class="lives" id="livesRow"></div>
+      </div>
+      <div class="sp-mid">
+        <div class="turn-pill" id="turnPill">
+          <span class="tp-dot" id="tpDot"></span>
+          <span id="turnText">YOUR TURN</span>
+          <span class="tp-dots"><i></i><i></i><i></i></span>
+        </div>
+        <div id="checkBadge">CHECK</div>
+        <div class="timebox" id="timeBox">
+          <div class="timebar"><i id="timeFill"></i></div>
+          <span class="timenum" id="timeNum"></span>
+        </div>
+        <div class="sp-hint" id="spHint">LEVEL NAIK LEBIH CERDAS</div>
+      </div>
+      <div class="sp-foot">
+        <button class="icon-btn wide" id="btnMenu">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M14 5 L7 12 L14 19"/></svg>
+          MENU
+        </button>
+      </div>
+    </aside>
+  </div>
+</section>
+
+<!-- PANEL LEVEL, SETTINGS & PROMOTION -->
+<div id="panelWrap">
+  <div class="panel" id="panelLevels" hidden>
+    <div class="panel-head">
+      <span class="panel-title">LEVEL</span>
+      <button class="x-btn" data-close aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6 L18 18 M18 6 L6 18"/></svg></button>
+    </div>
+    <p class="panel-sub">MODE 1 PLAYER &mdash; MENANG UNTUK MEMBUKA LEVEL BERIKUTNYA</p>
+    <div class="lv-grid" id="lvGrid"></div>
+  </div>
+  <div class="panel" id="panelSettings" hidden>
+    <div class="panel-head">
+      <span class="panel-title">SETTINGS</span>
+      <button class="x-btn" data-close aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6 L18 18 M18 6 L6 18"/></svg></button>
+    </div>
+    <div class="set-row col">
+      <span>BOARD THEME</span>
+      <div class="swatches" id="swatches">
+        <button class="swatch" data-t="walnut" aria-label="Walnut"><i></i><i></i><i></i><i></i></button>
+        <button class="swatch" data-t="emerald" aria-label="Emerald"><i></i><i></i><i></i><i></i></button>
+        <button class="swatch" data-t="slate" aria-label="Slate"><i></i><i></i><i></i><i></i></button>
+      </div>
+    </div>
+    <div class="set-row col">
+      <span>MOVE TIMER <em style="color:var(--gold);font-style:normal">&nbsp;&bull; REKOMENDASI: 30s</em></span>
+      <div class="seg" id="segTimer">
+        <button data-v="0">OFF</button>
+        <button data-v="15">15s</button>
+        <button data-v="30">30s</button>
+        <button data-v="60">60s</button>
+      </div>
+    </div>
+    <div class="set-row">
+      <span>MUSIC</span>
+      <button class="switch" id="swMusic" aria-pressed="true" aria-label="Music"></button>
+    </div>
+    <div class="set-row">
+      <span>SOUND FX</span>
+      <button class="switch" id="swSfx" aria-pressed="true" aria-label="Sound FX"></button>
+    </div>
+    <div class="set-row">
+      <span>MOVE HINTS</span>
+      <button class="switch" id="swHints" aria-pressed="true" aria-label="Move hints"></button>
+    </div>
+    <p class="set-note">PETUNJUK RUTE LANGKAH OTOMATIS NONAKTIF DI LV 03+</p>
+    <div class="set-row" style="border-bottom:none">
+      <span>ANIMATION</span>
+      <div class="seg" id="segSpeed">
+        <button data-v="normal">NORMAL</button>
+        <button data-v="fast">FAST</button>
+      </div>
+    </div>
+  </div>
+  <div class="panel" id="panelPromo" hidden>
+    <div class="panel-head">
+      <span class="panel-title">PROMOTION</span>
+      <button class="x-btn" data-close aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6 L18 18 M18 6 L6 18"/></svg></button>
+    </div>
+    <p class="panel-sub">HANYA BIDAK YANG TELAH GUGUR YANG BISA DIPILIH</p>
+    <div class="promo-grid cw" id="promoGrid"></div>
+  </div>
+</div>
+
+<!-- RESULT MODAL -->
+<div id="resultWrap">
+  <div class="result-card">
+    <div class="result-mascot" id="resultMascot"></div>
+    <div class="lives" id="rLives"></div>
+    <div class="r-label" id="rLabel">CHECKMATE</div>
+    <div class="r-verdict" id="rVerdict">YOU WIN</div>
+    <div class="r-sub" id="rSub">LEVEL 01 COMPLETED</div>
+    <div class="r-btns">
+      <button class="btn btn-primary" id="btnNext" hidden>NEXT LEVEL</button>
+      <button class="btn" id="btnRetry" hidden>RETRY</button>
+      <button class="btn" id="btnResultMenu">MENU</button>
+    </div>
+  </div>
+</div>
+
+<!-- SLAM OVERLAY -->
+<div id="vsWrap">
+  <div class="vs-band l"></div>
+  <div class="vs-band r"></div>
+  <div class="vs-lines"></div>
+  <div class="vs-flash"></div>
+  <div class="vs-tilt">
+    <div class="vs-text" id="vsText">SKAK!</div>
+    <div class="vs-sub" id="vsSub"></div>
+  </div>
+</div>
+
+<!-- GATE — layar terbelah -->
+<div id="gateWrap">
+  <div class="gate l"></div>
+  <div class="gate r"></div>
+  <div class="gate-seam"></div>
+</div>
+
+<!-- TOAST -->
+<div id="toastWrap"></div>
+
+<!-- ROTATE HINT -->
+<div id="rotateWrap">
+  <div class="phone"></div>
+  <div class="rot-title">ROTATE DEVICE</div>
+  <div class="rot-sub">CRO CHESS KING DIRANCANG<br>UNTUK MODE LANDSCAPE</div>
+  <button class="rot-skip" id="btnRotateSkip">PLAY ANYWAY</button>
+</div>
+
+<script>
+'use strict';
+/* ============================================================
+   CRO CHESS KING — LOGIKA GAME (V.1.6.0)
+   Baru:
+   - Fullscreen otomatis di PC (gesture pertama; batasan browser:
+     fullscreen hanya boleh dipicu dari interaksi pengguna).
+   - Papan besar & stabil saat resize (basis vmin, tanpa 100dvh).
+   - Brand stack CRO / CHESS KING di opening & lobby.
+   ============================================================ */
+
+/* ---------------- 1) UTILITAS & PENYIMPANAN ---------------- */
+const $  = s => document.querySelector(s);
+const $$ = s => document.querySelectorAll(s);
+const sleep = ms => new Promise(res => setTimeout(res, ms));
+const rand  = (a,b) => a + Math.random()*(b-a);
+const pad2  = n => String(n).padStart(2,'0');
+const store = {
+  get(k,d){ try{ const v = localStorage.getItem(k); return v==null ? d : JSON.parse(v); }catch(e){ return d; } },
+  set(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+};
+
+const settings = Object.assign(
+  { theme:'walnut', hints:true, speed:'normal', music:true, sfx:true, mode:'1p', timer:30 },
+  store.get('cro_settings', {})
+);
+let unlockedLevel = store.get('cro_unlock', 1);
+let currentLevel  = store.get('cro_level', 1);
+let lives         = store.get('cro_lives', 3);
+
+function applySettings(){
+  document.body.classList.remove('theme-walnut','theme-emerald','theme-slate');
+  document.body.classList.add('theme-' + settings.theme);
+}
+const moveDur = () => settings.speed === 'fast' ? { slide:230, knight:330 } : { slide:380, knight:520 };
+
+/* ============================================================
+   1b) FULLSCREEN OTOMATIS (PC)
+   Browser melarang fullscreen tanpa gesture pengguna, jadi
+   percobaan pertama dilakukan pada SENTUHAN/KLIK PERTAMA.
+   Setelah aktif, dipertahankan (ESC bisa keluar; klik kembali
+   masuk fullscreen lagi).
+   ============================================================ */
+function tryFullscreen(){
+  const el = document.documentElement;
+  const req = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
+  if(!req) return;
+  if(!document.fullscreenElement && !document.webkitFullscreenElement){
+    try { const p = req.call(el); if(p && p.catch) p.catch(()=>{}); } catch(e){}
+  }
+}
+function isFullscreen(){
+  return !!(document.fullscreenElement || document.webkitFullscreenElement);
+}
+document.addEventListener('fullscreenchange', () => {
+  if(!isFullscreen()){ /* kembali normal; tap berikutnya masuk lagi */ }
+});
+
+/* ============================================================
+   2) AUDIO — WEB AUDIO API
+   ============================================================ */
+const Sound = (() => {
+  let ctx = null, musicBus = null, sfxBus = null;
+  let musicTimer = null, musicBar = 0, musicRunning = false;
+  let tensionOn = false, tensionNodes = null, hbTimer = null;
+
+  function ready(){
+    if(!ctx){
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if(!AC) return false;
+      ctx = new AC();
+      musicBus = ctx.createGain();
+      sfxBus   = ctx.createGain();
+      const comp = ctx.createDynamicsCompressor();
+      comp.threshold.value = -20; comp.ratio.value = 5;
+      const lp = ctx.createBiquadFilter();
+      lp.type = 'lowpass'; lp.frequency.value = 5200; lp.Q.value = 0.4;
+      musicBus.connect(comp); sfxBus.connect(comp);
+      comp.connect(lp); lp.connect(ctx.destination);
+      updateVolumes();
+    }
+    if(ctx.state === 'suspended') ctx.resume();
+    return true;
+  }
+  function updateVolumes(){
+    if(!ctx) return;
+    musicBus.gain.value = settings.music ? (tensionOn ? 0.3 : 1) : 0;
+    sfxBus.gain.value   = settings.sfx ? 1 : 0;
+  }
+
+  function tone(o){
+    if(!ctx || ctx.state !== 'running') return;
+    const t0 = ctx.currentTime + (o.at || 0);
+    const osc = ctx.createOscillator();
+    const g = ctx.createGain();
+    osc.type = o.type || 'sine';
+    osc.frequency.setValueAtTime(o.f, t0);
+    if(o.f2) osc.frequency.exponentialRampToValueAtTime(o.f2, t0 + o.dur);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(o.vol, t0 + (o.att || 0.012));
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + o.dur);
+    osc.connect(g); g.connect(o.bus || sfxBus);
+    osc.start(t0); osc.stop(t0 + o.dur + 0.06);
+  }
+  function knock(o){
+    const f = o.f || 180, v = o.vol != null ? o.vol : 0.26;
+    tone({ f, f2: f * 0.55, dur: o.dur || 0.09, type:'sine', vol: v, at: o.at, att: 0.008 });
+    noise({ dur: 0.025, vol: v * 0.22, freq: 1500, at: o.at });
+  }
+  function noise(o){
+    if(!ctx || ctx.state !== 'running') return;
+    const t0 = ctx.currentTime + (o.at || 0);
+    const len = Math.max(1, Math.floor(ctx.sampleRate * o.dur));
+    const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    for(let i = 0; i < len; i++) d[i] = (Math.random()*2 - 1) * (1 - i/len);
+    const src = ctx.createBufferSource(); src.buffer = buf;
+    const f = ctx.createBiquadFilter(); f.type = 'lowpass';
+    f.frequency.value = o.freq || 1800;
+    const g = ctx.createGain(); g.gain.value = o.vol || 0.12;
+    src.connect(f); f.connect(g); g.connect(sfxBus);
+    src.start(t0);
+  }
+
+  const SFX = {
+    click(){   knock({ f: 820, dur: 0.04, vol: 0.09 }); },
+    select(){  tone({ f: 640, f2: 820, dur: 0.07, type:'triangle', vol: 0.06 }); },
+    move(){    knock({ f: 175, dur: 0.1, vol: 0.26 }); },
+    capture(){ knock({ f: 145, dur: 0.09, vol: 0.32 }); knock({ f: 105, dur: 0.14, vol: 0.32, at: 0.05 }); noise({ dur: 0.04, vol: 0.09, freq: 1100, at: 0.05 }); },
+    knight(){  tone({ f: 240, f2: 380, dur: 0.1, type:'triangle', vol: 0.07 }); },
+    land(){    knock({ f: 195, dur: 0.08, vol: 0.2 }); },
+    castle(){  knock({ f: 180, dur: 0.09, vol: 0.24 }); knock({ f: 165, dur: 0.09, vol: 0.24, at: 0.1 }); },
+    check(){   tone({ f: 620, dur: 0.13, type:'triangle', vol: 0.08 }); tone({ f: 523, dur: 0.18, type:'triangle', vol: 0.08, at: 0.13 }); },
+    promote(){ [523.25, 659.25, 783.99].forEach((f, i) => tone({ f, dur: 0.15, type:'triangle', vol: 0.07, at: i * 0.08 })); },
+    tick(){    knock({ f: 1150, dur: 0.03, vol: 0.06 }); },
+    timeup(){  tone({ f: 740, f2: 520, dur: 0.16, type:'triangle', vol: 0.1 }); tone({ f: 520, f2: 330, dur: 0.24, type:'triangle', vol: 0.1, at: 0.16 }); },
+    mate(){    knock({ f: 70, dur: 0.42, vol: 0.55 }); tone({ f: 98, dur: 0.7, type:'sawtooth', vol: 0.06 }); tone({ f: 103.8, dur: 0.7, type:'sawtooth', vol: 0.05, at: 0.02 }); },
+    win(){     [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => tone({ f, dur: 0.26, type:'triangle', vol: 0.08, at: i * 0.12 })); },
+    lose(){    [392, 311.13, 261.63].forEach((f, i) => tone({ f, dur: 0.3, type:'sine', vol: 0.08, at: i * 0.17 })); },
+    draw(){    tone({ f: 440, dur: 0.2, type:'triangle', vol: 0.07 }); tone({ f: 440, dur: 0.22, type:'triangle', vol: 0.05, at: 0.24 }); },
+    vs(){      knock({ f: 85, dur: 0.3, vol: 0.5 }); tone({ f: 1250, f2: 150, dur: 0.3, type:'sawtooth', vol: 0.07 }); noise({ dur: 0.12, vol: 0.13, freq: 2600 }); },
+    deny(){    tone({ f: 340, f2: 240, dur: 0.12, type:'triangle', vol: 0.09 }); tone({ f: 240, f2: 150, dur: 0.16, type:'triangle', vol: 0.09, at: 0.12 }); },
+    hop(){     knock({ f: 230, dur: 0.06, vol: 0.14 }); },
+    gate(){    knock({ f: 120, dur: 0.22, vol: 0.4 }); knock({ f: 95, dur: 0.26, vol: 0.4, at: 0.14 }); },
+  };
+  function play(name){ if(settings.sfx && SFX[name]) SFX[name](); }
+
+  const BAR = 4.8;
+  const PROG = [
+    { pad:[110.00, 164.81, 220.00, 329.63], arp:[220.00, 261.63, 329.63, 440.00, 329.63, 261.63] },
+    { pad:[ 87.31, 130.81, 174.61, 261.63], arp:[174.61, 220.00, 261.63, 349.23, 261.63, 220.00] },
+    { pad:[ 98.00, 146.83, 196.00, 293.66], arp:[196.00, 246.94, 293.66, 392.00, 293.66, 246.94] },
+    { pad:[130.81, 196.00, 261.63, 329.63], arp:[261.63, 329.63, 392.00, 523.25, 392.00, 329.63] },
+  ];
+  function playBar(){
+    if(!ctx || ctx.state !== 'running') return;
+    const t0 = ctx.currentTime;
+    const ch = PROG[musicBar % PROG.length];
+    ch.pad.forEach((f, i) => {
+      const t = t0 + i * 0.04;
+      const osc = ctx.createOscillator(), g = ctx.createGain();
+      osc.type = 'sine'; osc.frequency.value = f;
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.linearRampToValueAtTime(0.045, t + 1.6);
+      g.gain.setValueAtTime(0.045, t + BAR + 0.6);
+      g.gain.linearRampToValueAtTime(0.0001, t + BAR + 1.9);
+      osc.connect(g); g.connect(musicBus);
+      osc.start(t); osc.stop(t + BAR + 2);
+    });
+    ch.arp.forEach((f, i) => {
+      const t = t0 + 0.5 + i * 0.8;
+      const osc = ctx.createOscillator(), g = ctx.createGain();
+      osc.type = 'triangle'; osc.frequency.value = f;
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(0.035, t + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.55);
+      osc.connect(g); g.connect(musicBus);
+      osc.start(t); osc.stop(t + 0.6);
+    });
+    musicBar++;
+  }
+  function loopMusic(){
+    if(!musicRunning) return;
+    playBar();
+    musicTimer = setTimeout(loopMusic, BAR * 1000);
+  }
+  function startMusic(){
+    if(!settings.music || !ready()) return;
+    if(musicRunning || ctx.state !== 'running') return;
+    musicRunning = true;
+    loopMusic();
+  }
+  function stopMusic(){
+    musicRunning = false;
+    clearTimeout(musicTimer);
+    updateVolumes();
+  }
+  function unlock(){
+    ready();
+    if(ctx && ctx.state === 'running') startMusic();
+  }
+
+  function setTension(on){
+    if(on === tensionOn) return;
+    tensionOn = on;
+    if(!ctx) return;
+    const t = ctx.currentTime;
+    if(on){
+      if(settings.music){
+        musicBus.gain.cancelScheduledValues(t);
+        musicBus.gain.setValueAtTime(musicBus.gain.value, t);
+        musicBus.gain.linearRampToValueAtTime(0.28, t + 0.4);
+      }
+      const o1 = ctx.createOscillator(), o2 = ctx.createOscillator();
+      const lp = ctx.createBiquadFilter(), g = ctx.createGain();
+      o1.type = 'sawtooth'; o2.type = 'sawtooth';
+      o1.frequency.value = 55; o2.frequency.value = 58.3;
+      lp.type = 'lowpass'; lp.frequency.value = 240;
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.linearRampToValueAtTime(0.05, t + 0.8);
+      o1.connect(lp); o2.connect(lp); lp.connect(g); g.connect(sfxBus);
+      o1.start(); o2.start();
+      tensionNodes = { o1, o2, g };
+      const beat = () => { knock({ f: 64, dur: 0.16, vol: 0.5 }); knock({ f: 58, dur: 0.14, vol: 0.4, at: 0.22 }); };
+      beat();
+      hbTimer = setInterval(beat, 1600);
+    } else {
+      if(tensionNodes){
+        const { o1, o2, g } = tensionNodes;
+        const t2 = ctx.currentTime;
+        g.gain.cancelScheduledValues(t2);
+        g.gain.setValueAtTime(g.gain.value, t2);
+        g.gain.linearRampToValueAtTime(0.0001, t2 + 0.6);
+        o1.stop(t2 + 0.7); o2.stop(t2 + 0.7);
+        tensionNodes = null;
+      }
+      clearInterval(hbTimer); hbTimer = null;
+      if(settings.music){
+        musicBus.gain.cancelScheduledValues(t);
+        musicBus.gain.setValueAtTime(musicBus.gain.value, t);
+        musicBus.gain.linearRampToValueAtTime(1, t + 0.8);
+      }
+    }
+  }
+
+  return { unlock, startMusic, stopMusic, updateVolumes, play, setTension };
+})();
+
+/* ---------------- 3) SPRITE KNIGHT OPENING ---------------- */
+function knightJumpSVG(p){
+  const line = '#6d5731';
+  return `<svg class="kn-svg" viewBox="0 0 240 280" aria-hidden="true">
+  <defs>
+    <linearGradient id="${p}bd" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fbf5e2"/><stop offset=".55" stop-color="#ecdfbd"/><stop offset="1" stop-color="#c8b184"/>
+    </linearGradient>
+    <linearGradient id="${p}mn" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#dcc99e"/><stop offset="1" stop-color="#a0824f"/>
+    </linearGradient>
+    <linearGradient id="${p}bs" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#e6d7b2"/><stop offset="1" stop-color="#ab9265"/>
+    </linearGradient>
+  </defs>
+
+  <g class="kn-face kn-back">
+    <path d="M 104 100 C 99 86, 104 72, 113 67 C 118 75, 119 88, 115 98 Z" fill="url(#${p}mn)" stroke="${line}" stroke-width="3" stroke-linejoin="round"/>
+    <path d="M 136 100 C 141 86, 136 72, 127 67 C 122 75, 121 88, 125 98 Z" fill="url(#${p}mn)" stroke="${line}" stroke-width="3" stroke-linejoin="round"/>
+    <path d="M 80 250 C 76 206, 82 158, 98 126 C 106 110, 114 98, 120 94 C 126 98, 134 110, 142 126 C 158 158, 164 206, 160 250 Z" fill="url(#${p}bd)" stroke="${line}" stroke-width="3" stroke-linejoin="round"/>
+    <path d="M 120 98 C 129 124, 133 164, 131 202 C 130 222, 127 238, 125 250 L 115 250 C 113 238, 110 222, 109 202 C 107 164, 111 124, 120 98 Z" fill="url(#${p}mn)" stroke="${line}" stroke-width="2.5" stroke-linejoin="round"/>
+    <path d="M 92 132 C 86 156, 84 190, 86 220" stroke="rgba(255,255,255,.35)" stroke-width="4" fill="none" stroke-linecap="round"/>
+  </g>
+
+  <g class="kn-face kn-front">
+    <path d="M 143 60 C 142 46, 147 35, 154 33 C 161 31, 166 38, 165 47 C 164 55, 159 61, 154 63 Z" fill="url(#${p}mn)" stroke="${line}" stroke-width="3" stroke-linejoin="round"/>
+    <path d="M 98 250 C 102 216, 110 198, 106 180 C 104 174, 98 170, 90 168 C 78 165, 64 162, 56 156 C 48 151, 42 145, 40 138 C 38 130, 42 123, 50 119 C 62 110, 82 98, 98 86 C 106 79, 112 70, 114 62 C 115 57, 117 52, 121 48 C 123 40, 127 32, 133 30 C 139 29, 143 34, 144 42 C 145 48, 146 54, 148 59 C 156 64, 163 74, 167 88 C 173 106, 176 128, 176 152 C 176 188, 172 222, 170 250 Z" fill="url(#${p}bd)" stroke="${line}" stroke-width="3" stroke-linejoin="round"/>
+    <path d="M 146 54 C 156 60, 163 72, 167 88 C 173 106, 176 128, 176 152 C 176 188, 172 222, 170 250 L 154 250 C 156 222, 158 194, 156 166 C 154 144, 149 126, 141 112 C 135 101, 131 91, 132 81 C 133 70, 138 61, 146 54 Z" fill="url(#${p}mn)" stroke="${line}" stroke-width="2.5" stroke-linejoin="round"/>
+    <circle cx="96" cy="100" r="4.6" fill="#38271a"/>
+    <circle cx="94.4" cy="98.4" r="1.4" fill="#fff"/>
+    <path d="M 88 92 C 92 89, 98 88, 102 90" stroke="#b49b6e" stroke-width="2.5" fill="none" stroke-linecap="round" opacity=".8"/>
+    <path d="M 62 119 C 56 120, 52 125, 54 130 C 59 130, 63 125, 62 119 Z" fill="${line}" opacity=".8"/>
+    <path d="M 44 133 C 50 140, 60 144, 72 146" stroke="${line}" stroke-width="3" fill="none" stroke-linecap="round"/>
+    <path d="M 66 106 C 80 96, 92 88, 104 80" stroke="rgba(255,255,255,.4)" stroke-width="5" fill="none" stroke-linecap="round"/>
+  </g>
+
+  <g>
+    <rect x="92" y="236" width="56" height="14" rx="7" fill="url(#${p}bs)" stroke="${line}" stroke-width="3"/>
+    <rect x="74" y="248" width="92" height="22" rx="10" fill="url(#${p}bs)" stroke="${line}" stroke-width="3"/>
+    <path d="M 86 255 L 154 255" stroke="rgba(255,255,255,.3)" stroke-width="3" stroke-linecap="round"/>
+  </g>
+</svg>`;
+}
+
+/* ---------------- 3b) MASKOT KNIGHT ---------------- */
+const MASCOT_HEAD_D = 'M 96 246 C 100 214, 108 196, 104 178 C 102 172, 96 168, 88 166 C 76 163, 62 160, 54 154 C 46 149, 40 143, 38 136 C 36 128, 40 121, 48 117 C 60 108, 80 96, 96 84 C 104 77, 110 68, 112 60 C 113 55, 115 50, 119 46 C 121 38, 125 30, 131 28 C 137 27, 141 32, 142 40 C 143 46, 144 52, 146 57 C 154 62, 161 72, 165 86 C 171 104, 174 126, 174 150 C 174 186, 170 220, 168 246 Z';
+const MASCOT_MANE_D = 'M 144 52 C 154 58, 161 70, 165 86 C 171 104, 174 126, 174 150 C 174 186, 170 220, 168 246 L 152 246 C 154 218, 156 190, 154 162 C 152 140, 147 122, 139 108 C 133 97, 129 87, 130 77 C 131 66, 136 57, 144 52 Z';
+
+function mascotSVG(p){
+  return `<svg class="mascot" viewBox="0 0 260 300" aria-hidden="true">
+  <defs>
+    <linearGradient id="${p}bd" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fbf5e2"/><stop offset=".55" stop-color="#ecdfbd"/><stop offset="1" stop-color="#c8b184"/>
+    </linearGradient>
+    <linearGradient id="${p}mn" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#dcc99e"/><stop offset="1" stop-color="#a0824f"/>
+    </linearGradient>
+    <linearGradient id="${p}bs" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#e6d7b2"/><stop offset="1" stop-color="#ab9265"/>
+    </linearGradient>
+    <linearGradient id="${p}sh" gradientUnits="userSpaceOnUse" x1="34" y1="0" x2="200" y2="0">
+      <stop offset="0" stop-color="#ffffff" stop-opacity=".26"/>
+      <stop offset=".45" stop-color="#ffffff" stop-opacity="0"/>
+      <stop offset=".58" stop-color="#000000" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000000" stop-opacity=".16"/>
+    </linearGradient>
+    <clipPath id="${p}cp"><path d="${MASCOT_HEAD_D}"/></clipPath>
+  </defs>
+  <g class="m-all">
+    <ellipse cx="130" cy="284" rx="86" ry="11" fill="rgba(0,0,0,.45)"/>
+    <g class="m-headpos" transform="translate(4,-2)">
+      <g class="m-head">
+        <path d="M 141 58 C 140 44, 145 33, 152 31 C 159 29, 164 36, 163 45 C 162 53, 157 59, 152 61 Z"
+              fill="url(#${p}mn)" stroke="#6d5731" stroke-width="3" stroke-linejoin="round"/>
+        <path d="${MASCOT_HEAD_D}" fill="url(#${p}bd)" stroke="#6d5731" stroke-width="3" stroke-linejoin="round"/>
+        <rect x="20" y="10" width="180" height="250" fill="url(#${p}sh)" clip-path="url(#${p}cp)"/>
+        <path d="${MASCOT_MANE_D}" fill="url(#${p}mn)" stroke="#6d5731" stroke-width="3" stroke-linejoin="round"/>
+        <path d="M 148 64 C 158 80, 164 100, 166 122 M 167 138 C 168 168, 167 200, 165 228 M 143 84 C 150 96, 154 110, 156 128"
+              stroke="#7a5f36" stroke-width="2.5" fill="none" stroke-linecap="round" opacity=".5"/>
+        <path d="${MASCOT_HEAD_D}" fill="none" stroke="#6d5731" stroke-width="3" stroke-linejoin="round"/>
+        <path d="M 112 50 C 108 58, 109 67, 115 73 C 119 65, 120 56, 118 49 C 116 47, 114 48, 112 50 Z" fill="url(#${p}mn)"/>
+        <path d="M 126 36 C 128 41, 130 47, 131 52" stroke="#6d5731" stroke-width="2" fill="none" stroke-linecap="round" opacity=".5"/>
+        <g class="eye-open">
+          <ellipse cx="94" cy="98" rx="7.5" ry="8.5" transform="rotate(-12 94 98)" fill="#f6eeda" stroke="#6d5731" stroke-width="2"/>
+          <g class="pupils">
+            <circle cx="95" cy="99" r="5" fill="#38271a"/>
+            <circle cx="92.8" cy="96.4" r="1.7" fill="#fff"/>
+          </g>
+          <path d="M 86.5 94.5 C 90 90.5, 98 90.5, 101.5 95.5" stroke="#b49b6e" stroke-width="2" fill="none" stroke-linecap="round" opacity=".7"/>
+        </g>
+        <path class="ec-blink" d="M 86 97 C 90 102, 98 102, 102 96" stroke="#6d5731" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+        <path class="ec-wink"  d="M 85 100 C 89 92.5, 99 92.5, 103 99.5" stroke="#6d5731" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+        <path d="M 60 117 C 53 118, 49 124, 51 130 C 57 129, 61 123, 60 117 Z" fill="#6d5731" opacity=".8"/>
+        <g class="mouth-smile">
+          <path d="M 42 131 C 50 139, 62 144, 76 146" stroke="#6d5731" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+        </g>
+        <g class="mouth-grin">
+          <path d="M 41 128 C 50 141, 64 149, 82 152 C 90 145, 88 132, 76 126 C 64 120, 48 121, 41 128 Z" fill="#4a331d" stroke="#6d5731" stroke-width="2" stroke-linejoin="round"/>
+          <path d="M 44 129 C 53 136, 66 142, 79 145 C 82 141, 80 134, 72 129 C 62 124, 50 124, 44 129 Z" fill="#f7efdb"/>
+        </g>
+        <path d="M 64 104 C 78 94, 92 85, 103 77" stroke="rgba(255,255,255,.4)" stroke-width="5" fill="none" stroke-linecap="round"/>
+        <ellipse cx="74" cy="114" rx="9" ry="5" transform="rotate(-32 74 114)" fill="rgba(255,255,255,.2)"/>
+      </g>
+    </g>
+    <g class="m-base">
+      <rect x="92" y="240" width="76" height="16" rx="8" fill="url(#${p}bs)" stroke="#6d5731" stroke-width="3"/>
+      <rect x="74" y="254" width="112" height="26" rx="12" fill="url(#${p}bs)" stroke="#6d5731" stroke-width="3"/>
+      <path d="M 86 261 L 174 261" stroke="rgba(255,255,255,.32)" stroke-width="3" stroke-linecap="round"/>
+    </g>
+  </g>
+</svg>`;
+}
+
+function startBlinking(svg){
+  const loop = () => {
+    svg.classList.add('blink');
+    setTimeout(() => svg.classList.remove('blink'), 130);
+    setTimeout(loop, rand(1900, 4300));
+  };
+  setTimeout(loop, rand(900, 2200));
+}
+
+/* ---------------- 4) OPENING SEQUENCE ---------------- */
+let openRun = 0, openAutoTimer = null;
+
+async function playOpening(){
+  const run = ++openRun;
+  const stage = $('#knStage');
+  const svg = stage.querySelector('svg');
+  const ok = () => run === openRun;
+
+  stage.classList.remove('go','turn','idle');
+  svg.classList.remove('show-front');
+  $('#openTitle').classList.remove('show');
+  $('#tapHint').classList.remove('show');
+
+  await sleep(400); if(!ok()) return;
+  stage.classList.add('go');
+  await sleep(2050); if(!ok()) return;
+  stage.classList.add('turn');
+  await sleep(240); if(!ok()) return;
+  svg.classList.add('show-front');
+  await sleep(320); if(!ok()) return;
+  stage.classList.add('idle');
+  $('#openTitle').classList.add('show');
+  await sleep(650); if(!ok()) return;
+  $('#tapHint').classList.add('show');
+  openAutoTimer = setTimeout(() => { if(ok()) gotoMenu(); }, 2600);
+}
+
+function gotoMenu(){
+  if(activeScreen !== 'opening') return;
+  showScreen('menu');
+}
+
+/* ---------------- 5) LAYAR, GATE & PANEL ---------------- */
+const screens = { opening: $('#scr-opening'), menu: $('#scr-menu'), game: $('#scr-game') };
+let activeScreen = 'opening';
+
+function showScreen(name){
+  screens[activeScreen].classList.remove('active');
+  screens[name].classList.add('active');
+  activeScreen = name;
+}
+
+let gateBusy = false;
+function toGame(){
+  if(gateBusy) return;
+  gateBusy = true;
+  const gate = $('#gateWrap');
+  gate.classList.remove('open');
+  gate.classList.add('on','close');
+  Sound.play('gate');
+  setTimeout(() => {
+    startLevel();
+    showScreen('game');
+    gate.classList.remove('close');
+    gate.classList.add('open');
+  }, 440);
+  setTimeout(() => {
+    gate.classList.remove('on','open');
+    gateBusy = false;
+  }, 1050);
+}
+
+const panelWrap = $('#panelWrap');
+let panelOpenedAt = 0;
+
+function openPanel(name){
+  $('#panelLevels').hidden   = name !== 'Levels';
+  $('#panelSettings').hidden = name !== 'Settings';
+  $('#panelPromo').hidden    = name !== 'Promo';
+  panelWrap.classList.toggle('center', name === 'Promo');
+  panelWrap.classList.add('open');
+  panelOpenedAt = performance.now();
+}
+function closePanels(){ panelWrap.classList.remove('open','center'); }
+
+const LOCK_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11 V8 a4 4 0 0 1 8 0 v3"/></svg>`;
+
+function renderLevels(){
+  const grid = $('#lvGrid');
+  grid.innerHTML = '';
+  for(let i = 1; i <= 8; i++){
+    const b = document.createElement('button');
+    const unlocked = i <= unlockedLevel;
+    b.className = 'lv' + (unlocked ? '' : ' locked') + (i === currentLevel ? ' current' : '');
+    b.innerHTML = unlocked ? pad2(i) : LOCK_SVG;
+    b.addEventListener('click', () => {
+      if(unlocked){
+        currentLevel = i;
+        store.set('cro_level', i);
+        updateLevelChip();
+        renderLevels();
+        renderMarks();
+      } else {
+        b.classList.add('deny');
+        setTimeout(() => b.classList.remove('deny'), 400);
+      }
+    });
+    grid.appendChild(b);
+  }
+}
+function updateLevelChip(){
+  $('#lvChip').textContent = state.mode === '2p' ? '2 PLAYERS' : 'LV ' + pad2(currentLevel);
+  $('#lobbyLv').textContent = 'LV ' + pad2(currentLevel);
+  $('#spHint').textContent = state.mode === '2p'
+    ? 'BERGANTIAN DI SATU DEVICE'
+    : (currentLevel >= 3
+        ? 'LV 3+: TANPA PETUNJUK LANGKAH'
+        : 'CRO MAKIN PINTAR TIAP LEVEL');
+}
+
+function heartSVG(fill){
+  return `<svg viewBox="0 0 24 24"><path d="M12 21C7 16.5 3 13.2 3 9.4 3 6.6 5.2 4.5 7.8 4.5 9.5 4.5 11 5.4 12 6.9 13 5.4 14.5 4.5 16.2 4.5 18.8 4.5 21 6.6 21 9.4 21 13.2 17 16.5 12 21Z" fill="${fill ? '#c9503c' : 'none'}" stroke="${fill ? '#e2a08e' : '#4a3b28'}" stroke-width="1.6"/></svg>`;
+}
+function renderLives(hitIdx){
+  [$('#livesRow'), $('#rLives'), $('#menuLives')].forEach(el => {
+    if(!el) return;
+    el.innerHTML = '';
+    for(let i = 0; i < 3; i++){
+      const s = document.createElement('span');
+      s.className = 'heart' + (i < lives ? ' on' : '') + (hitIdx === i ? ' hit' : '');
+      s.innerHTML = heartSVG(i < lives);
+      el.appendChild(s);
+    }
+  });
+  $('#livesRow').style.display = state.mode === '1p' ? 'flex' : 'none';
+  $('#rLives').style.display   = state.mode === '1p' ? 'flex' : 'none';
+}
+
+function syncSettingsUI(){
+  $$('.swatch').forEach(s => s.classList.toggle('sel', s.dataset.t === settings.theme));
+  $('#swHints').setAttribute('aria-pressed', settings.hints);
+  $('#swMusic').setAttribute('aria-pressed', settings.music);
+  $('#swSfx').setAttribute('aria-pressed', settings.sfx);
+  $$('#segSpeed button').forEach(b => b.classList.toggle('on', b.dataset.v === settings.speed));
+  $$('#segTimer button').forEach(b => b.classList.toggle('on', parseInt(b.dataset.v,10) === settings.timer));
+}
+
+function showToast(msg, dur = 2300){
+  const t = document.createElement('div');
+  t.className = 'toast';
+  t.textContent = msg;
+  $('#toastWrap').appendChild(t);
+  requestAnimationFrame(() => requestAnimationFrame(() => t.classList.add('on')));
+  setTimeout(() => {
+    t.classList.remove('on');
+    setTimeout(() => t.remove(), 350);
+  }, dur);
+}
+
+const rotateWrap = $('#rotateWrap');
+let rotateDismissed = false;
+function checkOrientation(){
+  const portrait = window.innerHeight > window.innerWidth;
+  const coarse = window.matchMedia('(pointer: coarse)').matches;
+  rotateWrap.classList.toggle('show', portrait && coarse && !rotateDismissed);
+}
+
+/* ============================================================
+   6) ENGINE — ATURAN CATUR LENGKAP
+   ============================================================ */
+const START = [
+  ['bR','bN','bB','bQ','bK','bB','bN','bR'],
+  ['bP','bP','bP','bP','bP','bP','bP','bP'],
+  [null,null,null,null,null,null,null,null],
+  [null,null,null,null,null,null,null,null],
+  [null,null,null,null,null,null,null,null],
+  [null,null,null,null,null,null,null,null],
+  ['wP','wP','wP','wP','wP','wP','wP','wP'],
+  ['wR','wN','wB','wQ','wK','wB','wN','wR']
+];
+const PIECE_ART = { p:'pc-p', r:'pc-r', n:'pc-n', b:'pc-b', q:'pc-q', k:'pc-k' };
+const KNIGHT_D = [[1,2],[2,1],[2,-1],[1,-2],[-1,-2],[-2,-1],[-2,1],[-1,2]];
+const KING_D   = [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
+const RAYS = {
+  b: [[1,1],[1,-1],[-1,1],[-1,-1]],
+  r: [[1,0],[-1,0],[0,1],[0,-1]],
+};
+RAYS.q = RAYS.b.concat(RAYS.r);
+
+const state = {
+  mode: settings.mode === '2p' ? '2p' : '1p',
+  board: null,
+  turn: 'w',
+  sel: null, targets: [], moves: [],
+  busy: false,
+  castling: { wK:true, wQ:true, bK:true, bQ:true },
+  epTarget: null,
+  halfmove: 0,
+  status: 'playing',
+  winner: null,
+  drawReason: null,
+  over: false,
+  lastMove: null,
+  history: [],
+  kings: { w:60, b:4 }
+};
+let idSeq = 0;
+let gameToken = 0;
+let aiTimer = null, aiWatchdog = null;
+let promoChoice = null, promoMoves = null;
+
+const enemyOf = c => c === 'w' ? 'b' : 'w';
+const inB = (r,c) => r >= 0 && r < 8 && c >= 0 && c < 8;
+const cloneBoard = b => b.map(p => p ? { t:p.t, c:p.c, id:p.id } : null);
+const findKingIndex = (b, color) => b.findIndex(p => p && p.t === 'k' && p.c === color);
+
+function availablePromoTypes(color){
+  const counts = { q:0, r:0, b:0, n:0 };
+  for(let i = 0; i < 64; i++){
+    const p = state.board[i];
+    if(p && p.c === color && p.t !== 'p' && p.t !== 'k') counts[p.t]++;
+  }
+  return ['q','r','b','n'].filter(t => counts[t] === 0);
+}
+
+function isSquareAttacked(board, sq, by){
+  const r = sq >> 3, c = sq & 7;
+  const pr = by === 'w' ? r + 1 : r - 1;
+  for(const dc of [-1, 1]){
+    const cc = c + dc;
+    if(pr >= 0 && pr < 8 && cc >= 0 && cc < 8){
+      const p = board[pr*8 + cc];
+      if(p && p.c === by && p.t === 'p') return true;
+    }
+  }
+  for(const [dr,dc] of KNIGHT_D){
+    const rr = r + dr, cc = c + dc;
+    if(!inB(rr,cc)) continue;
+    const p = board[rr*8 + cc];
+    if(p && p.c === by && p.t === 'n') return true;
+  }
+  for(const [dr,dc] of KING_D){
+    const rr = r + dr, cc = c + dc;
+    if(!inB(rr,cc)) continue;
+    const p = board[rr*8 + cc];
+    if(p && p.c === by && p.t === 'k') return true;
+  }
+  const scan = (dirs, types) => {
+    for(const [dr,dc] of dirs){
+      let rr = r + dr, cc = c + dc;
+      while(inB(rr,cc)){
+        const p = board[rr*8 + cc];
+        if(p){
+          if(p.c === by && types.includes(p.t)) return true;
+          break;
+        }
+        rr += dr; cc += dc;
+      }
+    }
+    return false;
+  };
+  if(scan(RAYS.b, ['b','q'])) return true;
+  if(scan(RAYS.r, ['r','q'])) return true;
+  return false;
+}
+
+function genPseudoMoves(board, idx, castling, ep){
+  const p = board[idx]; if(!p) return [];
+  const r = idx >> 3, c = idx & 7, out = [];
+  const enemy = enemyOf(p.c);
+  const push = (to, flag = '', cap = -1, promo = null) => out.push({ from:idx, to, flag, cap, promo });
+
+  if(p.t === 'p'){
+    const dir = p.c === 'w' ? -1 : 1;
+    const startR = p.c === 'w' ? 6 : 1;
+    const lastR  = p.c === 'w' ? 0 : 7;
+    if(inB(r + dir, c)){
+      const fwd = (r + dir) * 8 + c;
+      if(!board[fwd]){
+        if(r + dir === lastR){ for(const pr of ['q','r','b','n']) push(fwd, '', -1, pr); }
+        else {
+          push(fwd);
+          if(r === startR && !board[fwd + dir*8]) push(fwd + dir*8, '2');
+        }
+      }
+    }
+    for(const dc of [-1, 1]){
+      const rr = r + dir, cc = c + dc;
+      if(!inB(rr,cc)) continue;
+      const t = rr*8 + cc, q = board[t];
+      if(q && q.c === enemy){
+        if(rr === lastR){ for(const pr of ['q','r','b','n']) push(t, '', t, pr); }
+        else push(t, '', t);
+      } else if(!q && ep === t){
+        push(t, 'ep', t + (p.c === 'w' ? 8 : -8));
+      }
+    }
+  }
+  else if(p.t === 'n' || p.t === 'k'){
+    const dirs = p.t === 'n' ? KNIGHT_D : KING_D;
+    for(const [dr,dc] of dirs){
+      const rr = r + dr, cc = c + dc;
+      if(!inB(rr,cc)) continue;
+      const t = rr*8 + cc, q = board[t];
+      if(!q) push(t);
+      else if(q.c === enemy) push(t, '', t);
+    }
+    if(p.t === 'k') genCastles(board, idx, p, castling, push, r);
+  }
+  else {
+    const dirs = p.t === 'b' ? RAYS.b : p.t === 'r' ? RAYS.r : RAYS.q;
+    for(const [dr,dc] of dirs){
+      let rr = r + dr, cc = c + dc;
+      while(inB(rr,cc)){
+        const t = rr*8 + cc, q = board[t];
+        if(!q) push(t);
+        else { if(q.c === enemy) push(t, '', t); break; }
+        rr += dr; cc += dc;
+      }
+    }
+  }
+  return out;
+}
+
+function genCastles(board, idx, king, castling, push, r){
+  const enemy = enemyOf(king.c);
+  const home = king.c === 'w' ? 7 : 0;
+  if(r !== home || (idx & 7) !== 4) return;
+  const kSq = home*8 + 4;
+  if(isSquareAttacked(board, kSq, enemy)) return;
+  const kRight = king.c === 'w' ? castling.wK : castling.bK;
+  const qRight = king.c === 'w' ? castling.wQ : castling.bQ;
+
+  if(kRight){
+    const rk = board[home*8 + 7];
+    if(rk && rk.t === 'r' && rk.c === king.c &&
+       !board[home*8 + 5] && !board[home*8 + 6] &&
+       !isSquareAttacked(board, home*8 + 5, enemy) &&
+       !isSquareAttacked(board, home*8 + 6, enemy)) push(home*8 + 6, 'ck');
+  }
+  if(qRight){
+    const rk = board[home*8 + 0];
+    if(rk && rk.t === 'r' && rk.c === king.c &&
+       !board[home*8 + 1] && !board[home*8 + 2] && !board[home*8 + 3] &&
+       !isSquareAttacked(board, home*8 + 2, enemy) &&
+       !isSquareAttacked(board, home*8 + 3, enemy)) push(home*8 + 2, 'cq');
+  }
+}
+
+function applyEngineMove(board, mv){
+  const b = cloneBoard(board);
+  const p = b[mv.from];
+  b[mv.from] = null;
+  if(mv.flag === 'ep') b[mv.cap] = null;
+  b[mv.to] = mv.promo ? { t:mv.promo, c:p.c, id:p.id } : p;
+  if(mv.flag === 'ck' || mv.flag === 'cq'){
+    const home = p.c === 'w' ? 7 : 0;
+    const rf = mv.flag === 'ck' ? home*8 + 7 : home*8 + 0;
+    const rt = mv.flag === 'ck' ? home*8 + 5 : home*8 + 3;
+    b[rt] = b[rf]; b[rf] = null;
+  }
+  return b;
+}
+function legalMovesOn(board, idx, color, castling, ep){
+  return genPseudoMoves(board, idx, castling, ep).filter(mv => {
+    const nb = applyEngineMove(board, mv);
+    return !isSquareAttacked(nb, findKingIndex(nb, color), enemyOf(color));
+  });
+}
+function legalMovesFrom(idx){
+  const p = state.board[idx];
+  if(!p) return [];
+  return legalMovesOn(state.board, idx, p.c, state.castling, state.epTarget);
+}
+function allLegalMoves(board, color, castling, ep){
+  const out = [];
+  for(let i = 0; i < 64; i++){
+    const p = board[i];
+    if(p && p.c === color) out.push(...legalMovesOn(board, i, color, castling, ep));
+  }
+  return out;
+}
+
+function insufficientMaterial(){
+  const minors = { w:[], b:[] };
+  for(let i = 0; i < 64; i++){
+    const p = state.board[i]; if(!p) continue;
+    if(p.t === 'p' || p.t === 'q' || p.t === 'r') return false;
+    if(p.t === 'b' || p.t === 'n') minors[p.c].push({ t:p.t, sq:i });
+  }
+  const total = minors.w.length + minors.b.length;
+  if(total <= 1) return true;
+  if(total === 2 && minors.w.length === 1 && minors.b.length === 1){
+    const a = minors.w[0], b2 = minors.b[0];
+    if(a.t === 'b' && b2.t === 'b'){
+      const ca = ((a.sq >> 3) + (a.sq & 7)) % 2, cb = ((b2.sq >> 3) + (b2.sq & 7)) % 2;
+      if(ca === cb) return true;
+    }
+  }
+  return false;
+}
+
+function evaluateStatus(){
+  const moves = allLegalMoves(state.board, state.turn, state.castling, state.epTarget);
+  state.kings = { w: findKingIndex(state.board,'w'), b: findKingIndex(state.board,'b') };
+  const checked = isSquareAttacked(state.board, state.kings[state.turn], enemyOf(state.turn));
+  if(!moves.length){
+    if(checked){ state.status = 'checkmate'; state.winner = enemyOf(state.turn); }
+    else       { state.status = 'stalemate'; state.winner = null; }
+  }
+  else if(state.halfmove >= 100){
+    state.status = 'draw'; state.drawReason = 'fifty'; state.winner = null;
+  }
+  else if(insufficientMaterial()){
+    state.status = 'draw'; state.drawReason = 'insufficient'; state.winner = null;
+  }
+  else state.status = checked ? 'check' : 'playing';
+
+  state.over = state.status === 'checkmate' || state.status === 'stalemate' || state.status === 'draw';
+}
+
+function updateCastlingRights(mv, mover){
+  const C = state.castling;
+  if(mover.t === 'k'){
+    if(mover.c === 'w'){ C.wK = C.wQ = false; } else { C.bK = C.bQ = false; }
+  }
+  if(mv.from === 63 || mv.to === 63) C.wK = false;
+  if(mv.from === 56 || mv.to === 56) C.wQ = false;
+  if(mv.from === 7  || mv.to === 7)  C.bK = false;
+  if(mv.from === 0  || mv.to === 0)  C.bQ = false;
+}
+
+/* ============================================================
+   7) RENDER — PAPAN, BIDAK, HIGHLIGHT, STIKER
+   ============================================================ */
+const squaresEl = $('#squares'), marksEl = $('#marks'), piecesEl = $('#pieces'),
+      boardEl = $('#board'), fxLayer = $('#fxLayer');
+const pieceEls = new Map();
+
+const SVG_NS   = 'http://www.w3.org/2000/svg';
+const XLINK_NS = 'http://www.w3.org/1999/xlink';
+
+function svgEl(tag, attrs){
+  const e = document.createElementNS(SVG_NS, tag);
+  for(const k in attrs) e.setAttribute(k, attrs[k]);
+  return e;
+}
+function makeUse(t){
+  const u = document.createElementNS(SVG_NS, 'use');
+  u.setAttribute('href', '#' + PIECE_ART[t]);
+  u.setAttributeNS(XLINK_NS, 'xlink:href', '#' + PIECE_ART[t]);
+  return u;
+}
+function setPieceArt(el, t){
+  const svg = el.querySelector('svg');
+  if(!svg) return;
+  while(svg.firstChild) svg.removeChild(svg.firstChild);
+  svg.appendChild(makeUse(t));
+  const chk = svg.querySelector('use');
+  if(!chk || !chk.getAttribute('href')){
+    const fresh = document.createElementNS(SVG_NS, 'svg');
+    fresh.setAttribute('viewBox', '0 0 100 96');
+    fresh.appendChild(makeUse(t));
+    svg.replaceWith(fresh);
+  }
+}
+
+function buildSquares(){
+  for(let r = 0; r < 8; r++) for(let c = 0; c < 8; c++){
+    const d = document.createElement('div');
+    d.className = 'sq ' + (((r + c) % 2 === 0) ? 'light' : 'dark');
+    squaresEl.appendChild(d);
+  }
+}
+function buildCoords(){
+  const F = $('#filesCoord'), R = $('#ranksCoord');
+  'abcdefgh'.split('').forEach(f => { const s = document.createElement('span'); s.textContent = f; F.appendChild(s); });
+  for(let r = 8; r >= 1; r--){ const s = document.createElement('span'); s.textContent = r; R.appendChild(s); }
+}
+
+function newGame(){
+  clearTimeout(aiTimer); clearTimeout(aiWatchdog);
+  gameToken++;
+  state.board = [];
+  for(let r = 0; r < 8; r++) for(let c = 0; c < 8; c++){
+    const code = START[r][c];
+    state.board.push(code ? { t: code[1].toLowerCase(), c: code[0] === 'w' ? 'w' : 'b', id: ++idSeq } : null);
+  }
+  state.turn = 'w'; state.sel = null; state.targets = []; state.moves = []; state.busy = false;
+  state.castling = { wK:true, wQ:true, bK:true, bQ:true };
+  state.epTarget = null; state.halfmove = 0;
+  state.lastMove = null; state.history = [];
+  state.status = 'playing'; state.winner = null; state.drawReason = null; state.over = false;
+  state.kings = { w: findKingIndex(state.board,'w'), b: findKingIndex(state.board,'b') };
+  promoChoice = null; promoMoves = null;
+  Sound.setTension(false);
+  renderAllPieces(); renderMarks(); updateTurnUI(); updateLevelChip(); renderLives();
+}
+
+function startLevel(){
+  newGame();
+  const f = $('#boardFrame');
+  f.classList.remove('deal'); void f.offsetWidth; f.classList.add('deal');
+}
+
+function renderAllPieces(){
+  piecesEl.innerHTML = '';
+  fxLayer.innerHTML = '';
+  pieceEls.clear();
+  state.board.forEach((p, idx) => {
+    if(!p) return;
+    createPieceEl(p, idx);
+    pieceEls.get(p.id).querySelector('svg').animate(
+      [{ opacity:0, transform:'translateY(-10%)' }, { opacity:1, transform:'none' }],
+      { duration:240, delay: 10 * ((idx & 7) + (idx >> 3)), easing:'ease-out', fill:'backwards' }
+    );
+  });
+}
+function createPieceEl(p, idx){
+  const el = document.createElement('div');
+  el.className = 'piece ' + p.c;
+  const svg = document.createElementNS(SVG_NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 100 96');
+  el.appendChild(svg);
+  setPieceArt(el, p.t);
+  placePiece(el, idx);
+  piecesEl.appendChild(el);
+  pieceEls.set(p.id, el);
+}
+function placePiece(el, idx){
+  el.style.transform = `translate(${(idx & 7) * 100}%, ${(idx >> 3) * 100}%)`;
+}
+
+function effectiveHints(){
+  if(state.mode === '1p' && currentLevel >= 3) return false;
+  return settings.hints;
+}
+
+function renderMarks(){
+  marksEl.innerHTML = '';
+  if(state.lastMove){ addMark(state.lastMove.from, 'last'); addMark(state.lastMove.to, 'last'); }
+  if(state.status === 'check' || state.status === 'checkmate'){
+    const ks = state.kings[state.turn];
+    if(ks != null && ks >= 0) addMark(ks, 'checkk');
+  }
+  if(state.sel != null){
+    addMark(state.sel, 'sel');
+    if(effectiveHints()){
+      for(const t of state.targets) addMark(t, state.board[t] ? 'ring' : 'dot');
+    }
+  }
+}
+function addMark(idx, cls){
+  const d = document.createElement('div');
+  d.className = 'mark ' + cls;
+  d.style.transform = `translate(${(idx & 7) * 100}%, ${(idx >> 3) * 100}%)`;
+  marksEl.appendChild(d);
+}
+
+/* ---------- Stiker komik ---------- */
+const STICKERS = ['PAW!','POW!','WHAM!','BOP!','BAM!','ZAP!','KRAK!','SMACK!'];
+let fxSeq = 0;
+
+function starPoints(n, rOut, rIn){
+  const pts = [];
+  for(let i = 0; i < n * 2; i++){
+    const ang = (Math.PI * i) / n - Math.PI / 2;
+    const r = (i % 2 === 0 ? rOut : rIn) * (0.86 + Math.random() * 0.14);
+    pts.push((50 + Math.cos(ang) * r).toFixed(1) + ',' + (50 + Math.sin(ang) * r).toFixed(1));
+  }
+  return pts.join(' ');
+}
+
+function buildComicBurst(uniqueId, spikesOut, spikesIn){
+  const outer = starPoints(spikesOut, 50, 30);
+  const inner = starPoints(spikesIn, 34, 23);
+
+  const svg = svgEl('svg', { viewBox:'0 0 100 100' });
+  svg.classList.add('fx-burst');
+
+  const defs = svgEl('defs', {});
+  const pat = svgEl('pattern', { id:uniqueId+'h', width:7, height:7, patternUnits:'userSpaceOnUse', patternTransform:'rotate(18)' });
+  pat.appendChild(svgEl('circle', { cx:3.5, cy:3.5, r:1.7, fill:'rgba(26,18,8,.3)' }));
+  const clip = svgEl('clipPath', { id:uniqueId+'c' });
+  clip.appendChild(svgEl('polygon', { points:inner }));
+  defs.appendChild(pat);
+  defs.appendChild(clip);
+
+  const g = svgEl('g', { class:'fx-spin' });
+  g.appendChild(svgEl('polygon', { points:outer, fill:'#d94f3d', stroke:'#1a1208', 'stroke-width':3.5, 'stroke-linejoin':'round' }));
+  g.appendChild(svgEl('polygon', { points:inner, fill:'#ffd94a', stroke:'#1a1208', 'stroke-width':3,   'stroke-linejoin':'round' }));
+  g.appendChild(svgEl('rect', { x:0, y:0, width:100, height:100, fill:`url(#${uniqueId}h)`, 'clip-path':`url(#${uniqueId}c)` }));
+  [[50,3,50,14],[97,50,86,50],[50,97,50,86],[3,50,14,50]].forEach(([x1,y1,x2,y2]) => {
+    g.appendChild(svgEl('line', { x1, y1, x2, y2, stroke:'#1a1208', 'stroke-width':2.2, 'stroke-linecap':'round', opacity:.85 }));
+  });
+
+  svg.appendChild(defs);
+  svg.appendChild(g);
+  return svg;
+}
+
+function buildComicTilt(word){
+  const id = 'fx' + (++fxSeq);
+  const tilt = document.createElement('div');
+  tilt.className = 'fx-tilt';
+  tilt.style.transform = `rotate(${(Math.random() * 12 - 6).toFixed(1)}deg)`;
+  tilt.appendChild(buildComicBurst(id, 11, 8));
+  const w = document.createElement('span');
+  w.className = 'fx-word';
+  w.textContent = word;
+  tilt.appendChild(w);
+  return tilt;
+}
+
+function spawnSticker(idx, wordOverride){
+  const f = document.createElement('div');
+  f.className = 'fx';
+  f.style.left = ((idx & 7) * 12.5) + '%';
+  f.style.top  = ((idx >> 3) * 12.5) + '%';
+  const word = wordOverride || STICKERS[(Math.random() * STICKERS.length) | 0];
+  f.appendChild(buildComicTilt(word));
+  fxLayer.appendChild(f);
+  setTimeout(() => f.remove(), 950);
+}
+
+/* ---------- Slam KOF/TAKEN ---------- */
+let vsTimer = null;
+function showVsSlam(text, sub, danger){
+  const w = $('#vsWrap');
+  $('#vsText').textContent = text;
+  $('#vsSub').textContent = sub || '';
+  w.classList.toggle('danger', !!danger);
+  w.classList.remove('show','impact'); void w.offsetWidth;
+  w.classList.add('show','impact');
+  Sound.play('vs');
+  if(danger) setTimeout(() => Sound.play('mate'), 140);
+  clearTimeout(vsTimer);
+  vsTimer = setTimeout(() => w.classList.remove('show','impact'), 1550);
+}
+
+function select(idx){
+  deselect();
+  state.sel = idx;
+  state.moves = legalMovesFrom(idx);
+  state.targets = [...new Set(state.moves.map(m => m.to))];
+  pieceEls.get(state.board[idx].id)?.classList.add('selected');
+  Sound.play('select');
+  renderMarks();
+}
+function deselect(){
+  if(state.sel != null) pieceEls.get(state.board[state.sel].id)?.classList.remove('selected');
+  state.sel = null; state.targets = []; state.moves = [];
+  renderMarks();
+}
+
+/* ============================================================
+   8) EKSEKUSI LANGKAH + ANIMASI + SFX
+   ============================================================ */
+function executeUserMove(mv){
+  if(state.busy || state.over || !mv) return;
+  if(state.mode === '1p' && state.turn !== 'w') return;
+  commitMove(mv, false);
+}
+
+function commitMove(mv, byAI){
+  const mover = state.board[mv.from];
+  if(!mover) return;
+
+  const capSq = mv.flag === 'ep' ? mv.cap : (state.board[mv.to] ? mv.to : -1);
+  const capPiece = capSq >= 0 ? state.board[capSq] : null;
+
+  state.board[mv.from] = null;
+  if(capSq >= 0) state.board[capSq] = null;
+  state.board[mv.to] = { t: mv.promo || mover.t, c: mover.c, id: mover.id };
+  if(mv.flag === 'ck' || mv.flag === 'cq'){
+    const home = mover.c === 'w' ? 7 : 0;
+    const rf = mv.flag === 'ck' ? home*8 + 7 : home*8 + 0;
+    const rt = mv.flag === 'ck' ? home*8 + 5 : home*8 + 3;
+    state.board[rt] = state.board[rf]; state.board[rf] = null;
+  }
+
+  state.epTarget = mv.flag === '2' ? (mv.from + mv.to) / 2 : null;
+  state.halfmove = (mover.t === 'p' || capSq >= 0) ? 0 : state.halfmove + 1;
+  updateCastlingRights(mv, mover);
+  state.lastMove = mv;
+  state.history.push({ color:mover.c, from:mv.from, to:mv.to, flag:mv.flag, promo:mv.promo || null, cap:capSq });
+  state.turn = enemyOf(mover.c);
+  state.sel = null; state.targets = []; state.moves = [];
+  state.status = 'playing';
+  updateTurnUI();
+  renderMarks();
+
+  animateMove(mv, mover, capPiece, byAI);
+}
+
+function animateMove(mv, mover, capPiece, byAI){
+  const el = pieceEls.get(mover.id);
+  const r0 = mv.from >> 3, c0 = mv.from & 7, r1 = mv.to >> 3, c1 = mv.to & 7;
+  const isN = mover.t === 'n';
+  const d = moveDur();
+  const durMs = isN ? d.knight : d.slide;
+  const lift  = isN ? -52 : -16;
+  const scale = isN ? 1.14 : 1.06;
+  const fm = `translate(${c0*100}%, ${r0*100}%)`;
+  const mm = `translate(${(c0+c1)*50}%, ${(r0+r1)*50 + lift}%) scale(${scale})`;
+  const tm = `translate(${c1*100}%, ${r1*100}%)`;
+
+  if(mv.flag === 'ck' || mv.flag === 'cq') Sound.play('castle');
+  else if(isN) Sound.play('knight');
+  else Sound.play('move');
+
+  if(capPiece){
+    setTimeout(() => Sound.play('capture'), durMs * 0.45);
+    setTimeout(() => {
+      spawnSticker(mv.flag === 'ep' ? mv.cap : mv.to);
+      const f = $('#boardFrame');
+      f.classList.remove('shake'); void f.offsetWidth; f.classList.add('shake');
+    }, durMs * 0.45);
+    setTimeout(() => fadeOutPiece(capPiece.id), durMs * 0.45);
+  }
+  if(isN) setTimeout(() => Sound.play('land'), durMs * 0.85);
+
+  if(mv.flag === 'ck' || mv.flag === 'cq'){
+    const home = mover.c === 'w' ? 7 : 0;
+    const rf = mv.flag === 'ck' ? home*8 + 7 : home*8 + 0;
+    const rt = mv.flag === 'ck' ? home*8 + 5 : home*8 + 3;
+    const rook = state.board[rt];
+    const rel = rook ? pieceEls.get(rook.id) : null;
+    if(rel){
+      const rr0 = rf >> 3, rc0 = rf & 7, rr1 = rt >> 3, rc1 = rt & 7;
+      rel.style.transform = `translate(${rc1*100}%, ${rr1*100}%)`;
+      rel.animate(
+        [{ transform:`translate(${rc0*100}%, ${rr0*100}%)` },
+         { transform:`translate(${rc1*100}%, ${rr1*100}%)` }],
+        { duration: durMs, easing:'cubic-bezier(.5,.05,.35,1)' }
+      );
+    }
+  }
+
+  state.busy = true;
+  if(!el){ afterMoveSettle(mv, mover, byAI); return; }
+  el.classList.remove('selected');
+  el.style.transform = tm;
+  el.animate(
+    [{ transform: fm },
+     { transform: mm, offset:.55 },
+     { transform: `${tm} scale(1.04)`, offset:.88 },
+     { transform: tm }],
+    { duration: durMs, easing:'cubic-bezier(.5,.05,.35,1)' }
+  );
+  setTimeout(() => afterMoveSettle(mv, mover, byAI), durMs);
+}
+
+function fadeOutPiece(id){
+  const ve = pieceEls.get(id);
+  if(!ve) return;
+  ve.querySelector('svg').animate(
+    [{ opacity:1, transform:'scale(1)' }, { opacity:0, transform:'scale(.45)' }],
+    { duration:200, easing:'ease-out', fill:'forwards' }
+  );
+  setTimeout(() => { ve.remove(); pieceEls.delete(id); }, 230);
+}
+
+function afterMoveSettle(mv, mover, byAI){
+  try {
+    if(activeScreen === 'game'){
+      if(mv.promo){
+        const el = pieceEls.get(mover.id);
+        if(el){
+          setPieceArt(el, mv.promo);
+          el.querySelector('svg').animate(
+            [{ transform:'scale(1)' }, { transform:'scale(1.25)' }, { transform:'scale(1)' }],
+            { duration:320, easing:'ease-out' }
+          );
+        }
+        Sound.play('promote');
+      }
+      evaluateStatus();
+      renderMarks();
+      if(state.status === 'check'){
+        Sound.setTension(true);
+        showVsSlam('SKAK!', 'RAJA TERANCAM!', false);
+      } else if(state.status === 'checkmate'){
+        Sound.setTension(false);
+        const sub = state.mode === '2p'
+          ? (state.winner === 'w' ? 'PUTIH MENANG!' : 'HITAM MENANG!')
+          : (state.winner === 'w' ? 'KAMU MENANG!' : 'CRO MENANG!');
+        showVsSlam('CHECKMATE!', sub, true);
+      } else {
+        Sound.setTension(false);
+      }
+      updateTurnUI();
+    }
+  } catch(err){
+    try { evaluateStatus(); updateTurnUI(); } catch(e2){}
+  } finally {
+    state.busy = false;
+  }
+  if(activeScreen !== 'game') return;
+  if(state.over){
+    setTimeout(showResult, state.status === 'checkmate' ? 1500 : 750);
+    return;
+  }
+  if(state.mode === '1p' && !byAI) aiTurn();
+}
+
+function updateTurnUI(){
+  const pill = $('#turnPill'), txt = $('#turnText'), badge = $('#checkBadge'), dot = $('#tpDot');
+  if(state.mode === '2p'){
+    txt.textContent = state.turn === 'w' ? "WHITE'S TURN" : "BLACK'S TURN";
+    pill.classList.remove('thinking');
+  } else {
+    if(state.turn === 'w'){ pill.classList.remove('thinking'); txt.textContent = 'YOUR TURN'; }
+    else                  { pill.classList.add('thinking');    txt.textContent = 'CRO IS THINKING'; }
+  }
+  dot.style.background = state.turn === 'w' ? '#efe6d0' : '#3a3d47';
+  dot.style.boxShadow  = state.turn === 'w'
+    ? '0 0 0 3px rgba(212,175,106,.16)'
+    : '0 0 0 3px rgba(255,255,255,.08)';
+  badge.classList.toggle('show', state.status === 'check');
+  startTimer();
+}
+
+/* ============================================================
+   TIMER LANGKAH
+   ============================================================ */
+let timerRAF = null, timeDeadline = 0, lastTickSec = -1;
+
+function hideTimerBar(){
+  $('#timeBox').classList.remove('on','low');
+  if(timerRAF){ cancelAnimationFrame(timerRAF); timerRAF = null; }
+}
+function startTimer(){
+  const humanTurn = activeScreen === 'game' && !state.over &&
+                    (state.mode === '2p' || state.turn === 'w');
+  if(settings.timer > 0 && humanTurn){
+    $('#timeBox').classList.add('on');
+    timeDeadline = performance.now() + settings.timer * 1000;
+    lastTickSec = -1;
+    if(!timerRAF) timerRAF = requestAnimationFrame(tickTimer);
+  } else {
+    hideTimerBar();
+  }
+}
+function tickTimer(){
+  timerRAF = null;
+  const humanTurn = activeScreen === 'game' && !state.over &&
+                    (state.mode === '2p' || state.turn === 'w');
+  if(!(settings.timer > 0 && humanTurn)){ hideTimerBar(); return; }
+  timerRAF = requestAnimationFrame(tickTimer);
+  if(state.busy || promoChoice) return;
+  const total = settings.timer * 1000;
+  const left  = Math.max(0, timeDeadline - performance.now());
+  $('#timeFill').style.width = (left / total * 100) + '%';
+  const sec = Math.ceil(left / 1000);
+  $('#timeNum').textContent = sec;
+  const low = left <= 5000;
+  $('#timeBox').classList.toggle('low', low);
+  if(low && sec !== lastTickSec){ lastTickSec = sec; Sound.play('tick'); }
+  if(left <= 0){ cancelAnimationFrame(timerRAF); timerRAF = null; onTimeOut(); }
+}
+function onTimeOut(){
+  if(state.over) return;
+  clearTimeout(aiTimer); clearTimeout(aiWatchdog);
+  deselect();
+  state.over = true; state.busy = false;
+  state.status = 'timeout';
+  state.winner = state.mode === '2p' ? enemyOf(state.turn) : 'b';
+  Sound.setTension(false);
+  Sound.play('timeup');
+  hideTimerBar();
+  renderMarks(); updateTurnUI();
+  setTimeout(showResult, 550);
+}
+
+/* ============================================================
+   9) AI — ANTI-MACET + TINGKAT KESULITAN
+   ============================================================ */
+const VAL = { p:100, n:305, b:320, r:500, q:900, k:20000 };
+
+function pickAIMove(pool){
+  const lv = Math.min(currentLevel, 8);
+  const noise = (9 - lv) * 24;
+  let best = null, bestS = -1e9;
+  const centerBonus = lv >= 5;
+  for(const mv of pool){
+    let s = Math.random() * noise;
+    const victim = mv.cap >= 0 ? state.board[mv.cap] : null;
+    if(victim) s += VAL[victim.t] || 0;
+    if(mv.promo === 'q') s += 800;
+    else if(mv.promo)    s += VAL[mv.promo] || 0;
+    if(lv >= 3){
+      const nb = applyEngineMove(state.board, mv);
+      if(isSquareAttacked(nb, mv.to, 'w')){
+        const ptype = mv.promo || state.board[mv.from].t;
+        s -= (VAL[ptype] || 0) * 0.6;
+      }
+    }
+    if(centerBonus){
+      const c = mv.to & 7, r = mv.to >> 3;
+      s += (7 - Math.abs(3.5 - c) - Math.abs(3.5 - r)) * 2;
+    }
+    if(s > bestS){ bestS = s; best = mv; }
+  }
+  return best;
+}
+
+function aiTurn(){
+  if(state.mode !== '1p' || state.over || state.turn !== 'b' || activeScreen !== 'game') return;
+  updateTurnUI();
+  const token = gameToken;
+  clearTimeout(aiTimer); clearTimeout(aiWatchdog);
+  aiTimer    = setTimeout(() => runAI(token), rand(600, 1100));
+  aiWatchdog = setTimeout(() => runAI(token), 4500);
+}
+
+function runAI(token){
+  clearTimeout(aiTimer); clearTimeout(aiWatchdog);
+  if(token !== gameToken) return;
+  if(activeScreen !== 'game' || state.over || state.turn !== 'b' || state.busy) return;
+  try {
+    let pool = allLegalMoves(state.board, 'b', state.castling, state.epTarget);
+    if(!pool.length){
+      evaluateStatus();
+      if(state.over){ setTimeout(showResult, 750); }
+      else { state.turn = 'w'; updateTurnUI(); }
+      return;
+    }
+    const availB = availablePromoTypes('b');
+    const filtered = pool.filter(m => !m.promo || availB.includes(m.promo));
+    if(filtered.length) pool = filtered;
+
+    const mv = pickAIMove(pool);
+    if(mv) commitMove(mv, true);
+    else { state.turn = 'w'; state.busy = false; updateTurnUI(); }
+  } catch(err){
+    state.turn = 'w'; state.busy = false; updateTurnUI();
+  }
+}
+
+/* ---------------- INPUT PAPAN ---------------- */
+boardEl.addEventListener('pointerdown', e => {
+  if(activeScreen !== 'game' || state.busy || state.over) return;
+  if(state.mode === '1p' && state.turn !== 'w') return;
+  if(promoChoice) return;
+  const rect = squaresEl.getBoundingClientRect();
+  const c = Math.floor((e.clientX - rect.left) / rect.width  * 8);
+  const r = Math.floor((e.clientY - rect.top)  / rect.height * 8);
+  if(c < 0 || c > 7 || r < 0 || r > 7) return;
+  const idx = r * 8 + c, p = state.board[idx];
+
+  if(state.sel != null){
+    if(state.targets.includes(idx)){
+      const mvs = state.moves.filter(m => m.to === idx);
+      if(mvs.length > 1 || (mvs[0] && mvs[0].promo)){
+        e.preventDefault();
+        openPromotion(state.sel, idx);
+      } else if(mvs[0]){
+        executeUserMove(mvs[0]);
+      }
+      return;
+    }
+    if(p && p.c === state.turn){ idx === state.sel ? deselect() : select(idx); return; }
+    deselect();
+  }
+  else if(p && p.c === state.turn){ select(idx); }
+});
+
+/* ============================================================
+   10) UI PROMOSI
+   ============================================================ */
+const PROMO_ORDER = ['q','r','b','n'];
+function renderPromoTiles(types, color){
+  const g = $('#promoGrid');
+  g.innerHTML = '';
+  g.className = 'promo-grid ' + (color === 'w' ? 'cw' : 'cb');
+  for(const t of PROMO_ORDER){
+    if(!types.includes(t)) continue;
+    const b = document.createElement('button');
+    b.className = 'ptile';
+    b.type = 'button';
+    b.dataset.t = t;
+    b.setAttribute('aria-label', 'Promote to ' + t.toUpperCase());
+    const svg = document.createElementNS(SVG_NS, 'svg');
+    svg.setAttribute('viewBox', '0 0 100 96');
+    svg.appendChild(makeUse(t));
+    b.appendChild(svg);
+    g.appendChild(b);
+  }
+}
+function openPromotion(from, to){
+  const pawn = state.board[from];
+  if(!pawn || pawn.t !== 'p') return;
+  const variants = legalMovesFrom(from).filter(m => m.to === to && m.promo);
+  if(!variants.length){ deselect(); return; }
+
+  const avail = availablePromoTypes(pawn.c);
+  const usable = variants.filter(m => avail.includes(m.promo));
+
+  if(!usable.length){
+    deselect();
+    spawnSticker(to, 'DENIED!');
+    showToast('PION TIDAK DAPAT DIPROMOSIKAN — Q R B N MASIH LENGKAP');
+    Sound.play('deny');
+    return;
+  }
+
+  promoMoves  = usable;
+  promoChoice = { from, to };
+  renderPromoTiles(usable.map(m => m.promo), pawn.c);
+  openPanel('Promo');
+}
+function cancelPromotion(){
+  promoChoice = null; promoMoves = null;
+  closePanels();
+  deselect();
+}
+
+function choosePromotion(tile){
+  if(!promoChoice || !promoMoves) return;
+  if(performance.now() - panelOpenedAt < 120) return;
+  const mv = promoMoves.find(m => m.promo === tile.dataset.t) || promoMoves[0];
+  promoChoice = null; promoMoves = null;
+  closePanels();
+  executeUserMove(mv);
+}
+
+/* ============================================================
+   11) RESULT + NYAWA + PROGRESI LEVEL
+   ============================================================ */
+const resultWrap = $('#resultWrap');
+let gameOverReset = false;
+
+function showResult(){
+  clearTimeout(aiTimer); clearTimeout(aiWatchdog);
+  Sound.setTension(false);
+  hideTimerBar();
+  const label = $('#rLabel'), verdict = $('#rVerdict'), sub = $('#rSub');
+  const bNext = $('#btnNext'), bRetry = $('#btnRetry');
+  verdict.className = 'r-verdict';
+  sub.className = 'r-sub';
+  gameOverReset = false;
+  const drawText = () => state.drawReason === 'fifty' ? '50-MOVE RULE' : 'INSUFFICIENT MATERIAL';
+
+  if(state.mode === '2p'){
+    if(state.status === 'timeout'){
+      label.textContent = "TIME'S UP";
+      verdict.textContent = state.winner === 'w' ? 'WHITE WINS' : 'BLACK WINS';
+      verdict.classList.add('win');
+      sub.textContent = 'ON TIME';
+    }
+    else if(state.status === 'checkmate'){
+      label.textContent = 'CHECKMATE';
+      verdict.textContent = state.winner === 'w' ? 'WHITE WINS' : 'BLACK WINS';
+      verdict.classList.add('win');
+      sub.textContent = 'BY CHECKMATE';
+    }
+    else if(state.status === 'stalemate'){
+      label.textContent = 'STALEMATE';
+      verdict.textContent = 'DRAW';
+      verdict.classList.add('draw');
+      sub.textContent = 'NO LEGAL MOVES';
+    }
+    else {
+      label.textContent = 'DRAW';
+      verdict.textContent = 'DRAW';
+      verdict.classList.add('draw');
+      sub.textContent = drawText();
+    }
+    bNext.hidden = true; bRetry.hidden = false;
+    $('#btnRetry').textContent = 'REMATCH';
+    setTimeout(() => Sound.play(state.status === 'checkmate' ? 'win' : 'draw'), 450);
+  }
+  else if(state.status === 'checkmate' || state.status === 'timeout'){
+    const isTime = state.status === 'timeout';
+    label.textContent = isTime ? "TIME'S UP" : 'CHECKMATE';
+    if(state.winner === 'w'){
+      lives = Math.min(3, lives + 1);
+      store.set('cro_lives', lives);
+      verdict.textContent = 'YOU WIN';
+      verdict.classList.add('win');
+      if(currentLevel >= 8){
+        sub.textContent = 'YOU ARE THE CHESS KING';
+        sub.classList.add('gold');
+      } else {
+        sub.textContent = `LEVEL ${pad2(currentLevel)} COMPLETED`;
+      }
+      if(currentLevel < 8 && unlockedLevel < currentLevel + 1){
+        unlockedLevel = currentLevel + 1;
+        store.set('cro_unlock', unlockedLevel);
+        renderLevels();
+      }
+      bNext.hidden = currentLevel >= 8;
+      bRetry.hidden = true;
+      setTimeout(() => Sound.play('win'), 450);
+    } else {
+      const lostIdx = lives - 1;
+      lives = Math.max(0, lives - 1);
+      store.set('cro_lives', lives);
+      renderLives(lostIdx >= 0 ? lostIdx : -1);
+      if(lives > 0){
+        verdict.textContent = 'YOU LOSE';
+        verdict.classList.add('lose');
+        sub.textContent = `LV ${pad2(currentLevel)} \u2022 ${lives} ${lives === 1 ? 'LIFE' : 'LIVES'} LEFT`;
+        bRetry.textContent = 'RETRY';
+        bRetry.hidden = false;
+      } else {
+        verdict.textContent = 'GAME OVER';
+        verdict.classList.add('lose');
+        sub.textContent = 'PROGRESS RESET \u2014 BACK TO LV 01';
+        bRetry.textContent = 'START OVER';
+        bRetry.hidden = false;
+        gameOverReset = true;
+      }
+      bNext.hidden = true;
+      setTimeout(() => Sound.play('lose'), 450);
+    }
+  }
+  else if(state.status === 'stalemate'){
+    label.textContent = 'STALEMATE';
+    verdict.textContent = 'DRAW';
+    verdict.classList.add('draw');
+    sub.textContent = 'NO LEGAL MOVES';
+    bNext.hidden = true; bRetry.hidden = false;
+    $('#btnRetry').textContent = 'RETRY';
+    setTimeout(() => Sound.play('draw'), 450);
+  }
+  else {
+    label.textContent = 'DRAW';
+    verdict.textContent = 'DRAW';
+    verdict.classList.add('draw');
+    sub.textContent = drawText();
+    bNext.hidden = true; bRetry.hidden = false;
+    $('#btnRetry').textContent = 'RETRY';
+    setTimeout(() => Sound.play('draw'), 450);
+  }
+
+  renderLives();
+  const rm = $('#resultMascot .mascot');
+  rm.classList.remove('grin');
+  if(state.status === 'checkmate') setTimeout(() => rm.classList.add('grin'), 350);
+
+  resultWrap.classList.add('open');
+}
+function closeResult(){ resultWrap.classList.remove('open'); }
+
+/* ---------------- RIPPLE ---------------- */
+document.addEventListener('pointerdown', e => {
+  const b = e.target.closest('.btn, .icon-btn, .ptile');
+  if(!b) return;
+  const r = b.getBoundingClientRect();
+  const s = document.createElement('span');
+  s.className = 'ripple';
+  const size = Math.max(r.width, r.height) * 2.2;
+  s.style.width = s.style.height = size + 'px';
+  s.style.left = (e.clientX - r.left) + 'px';
+  s.style.top  = (e.clientY - r.top) + 'px';
+  b.appendChild(s);
+  setTimeout(() => s.remove(), 600);
+}, true);
+
+/* ---------------- BINDING UI ---------------- */
+function bindUI(){
+  /* Gesture pertama: buka audio + fullscreen (PC) + sfx klik */
+  document.addEventListener('pointerdown', () => {
+    Sound.unlock();
+    tryFullscreen();   // no-op di HP kalau sudah fullscreen / tidak didukung
+    if(window.event && window.event.target && window.event.target.closest('button')) Sound.play('click');
+  }, true);
+  // sfx klik via delegasi terpisah (event target tersedia di handler pointerdown biasa)
+  document.addEventListener('pointerdown', e => {
+    if(e.target.closest('button')) Sound.play('click');
+  }, true);
+
+  $('#btn1P').addEventListener('click', () => {
+    state.mode = '1p';
+    settings.mode = '1p'; store.set('cro_settings', settings);
+    updateLevelChip(); renderLives();
+    toGame();
+  });
+  $('#btn2P').addEventListener('click', () => {
+    state.mode = '2p';
+    settings.mode = '2p'; store.set('cro_settings', settings);
+    updateLevelChip(); renderLives();
+    toGame();
+  });
+  $('#btnLevels').addEventListener('click', () => { renderLevels(); openPanel('Levels'); });
+  $('#btnSettings').addEventListener('click', () => { syncSettingsUI(); openPanel('Settings'); });
+  $('#btnMenu').addEventListener('click', () => {
+    clearTimeout(aiTimer); clearTimeout(aiWatchdog);
+    promoChoice = null; promoMoves = null;
+    Sound.setTension(false);
+    hideTimerBar();
+    closePanels(); closeResult();
+    deselect();
+    showScreen('menu');
+  });
+
+  panelWrap.addEventListener('pointerdown', e => {
+    if(e.target === panelWrap || e.target.closest('[data-close]')){
+      if(performance.now() - panelOpenedAt < 450) return;
+      promoChoice ? cancelPromotion() : closePanels();
+    }
+  });
+
+  $('#promoGrid').addEventListener('pointerdown', e => {
+    const b = e.target.closest('.ptile');
+    if(!b) return;
+    e.preventDefault();
+    choosePromotion(b);
+  });
+
+  $('#btnNext').addEventListener('click', () => {
+    currentLevel = Math.min(currentLevel + 1, 8);
+    store.set('cro_level', currentLevel);
+    updateLevelChip();
+    closeResult();
+    toGame();
+  });
+  $('#btnRetry').addEventListener('click', () => {
+    closeResult();
+    if(gameOverReset){
+      currentLevel = 1; lives = 3; gameOverReset = false;
+      store.set('cro_level', 1); store.set('cro_lives', 3);
+      updateLevelChip(); renderLives();
+    }
+    toGame();
+  });
+  $('#btnResultMenu').addEventListener('click', () => {
+    closeResult();
+    showScreen('menu');
+  });
+
+  $('#swatches').addEventListener('click', e => {
+    const s = e.target.closest('.swatch'); if(!s) return;
+    settings.theme = s.dataset.t; store.set('cro_settings', settings);
+    applySettings(); syncSettingsUI();
+  });
+  $('#segTimer').addEventListener('click', e => {
+    const b = e.target.closest('button'); if(!b) return;
+    settings.timer = parseInt(b.dataset.v, 10) || 0;
+    store.set('cro_settings', settings);
+    syncSettingsUI();
+    startTimer();
+  });
+  $('#swMusic').addEventListener('click', () => {
+    settings.music = !settings.music; store.set('cro_settings', settings);
+    syncSettingsUI(); Sound.updateVolumes();
+    settings.music ? Sound.startMusic() : Sound.stopMusic();
+  });
+  $('#swSfx').addEventListener('click', () => {
+    settings.sfx = !settings.sfx; store.set('cro_settings', settings);
+    syncSettingsUI(); Sound.updateVolumes();
+  });
+  $('#swHints').addEventListener('click', () => {
+    settings.hints = !settings.hints; store.set('cro_settings', settings);
+    syncSettingsUI(); renderMarks();
+  });
+  $('#segSpeed').addEventListener('click', e => {
+    const b = e.target.closest('button'); if(!b) return;
+    settings.speed = b.dataset.v; store.set('cro_settings', settings);
+    syncSettingsUI();
+  });
+
+  screens.opening.addEventListener('pointerdown', () => {
+    clearTimeout(openAutoTimer);
+    openRun++;
+    gotoMenu();
+  });
+
+  $('#btnRotateSkip').addEventListener('click', () => {
+    rotateDismissed = true;
+    checkOrientation();
+  });
+
+  window.addEventListener('resize', checkOrientation);
+  window.addEventListener('orientationchange', () => setTimeout(checkOrientation, 60));
+}
+
+/* ---------------- INIT ---------------- */
+function init(){
+  applySettings();
+  buildSquares();
+  buildCoords();
+  newGame();
+
+  $('#knFlip').innerHTML = knightJumpSVG('kj');
+  $('#menuMascot').innerHTML  = mascotSVG('mB');
+  $('#resultMascot').innerHTML = mascotSVG('mC');
+  startBlinking($('#menuMascot .mascot'));
+  startBlinking($('#resultMascot .mascot'));
+
+  bindUI();
+  updateLevelChip();
+  renderLives();
+  checkOrientation();
+
+  Sound.unlock();
+  playOpening();
+}
+init();
+</script>
+</body>
+</html>
